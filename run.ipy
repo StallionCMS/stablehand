@@ -1,0 +1,183 @@
+#!/usr/local/bin/ipython
+
+import argparse
+import os
+import sys
+import toml
+import tempfile
+
+SUPPORTED_OSES = ['ubuntu']
+
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--initial', dest='is_initial', action='store_true')
+    parser.add_argument('--user', dest='user')
+    parser.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
+    parser.add_argument('--users-file', dest='users_file', default='users.toml')
+    parser.add_argument('hosts', nargs=argparse.REMAINDER)
+    options =  parser.parse_args()
+    hosts_file = options.hosts_file
+    if not os.path.isfile(hosts_file) and os.path.isfile("conf/" + hosts_file):
+        hosts_file = "conf/" + hosts_file
+    host_confs = load_hosts_from_toml(hosts_file, options.hosts)
+    user = options.user or get_login_user()
+    for host_conf in host_confs:
+        if options.is_initial:
+            users = load_users_from_toml(options.users_file)
+            initial_setup(host_conf, user, users)
+        else:
+            sync_host(user, host_conf, hosts_file)
+
+def load_hosts_from_toml(toml_path, hosts):    
+    if not os.path.isfile(toml_path):
+        org_toml_path = toml_path
+        toml_path = "conf/" + toml_path
+    if not os.path.isfile(toml_path):
+        raise Exception("You must have a hosts.toml in order to deploy. File '%s' does not exist." % org_toml_path)
+    with open(toml_path) as f:
+        all_hosts_conf = toml.load(f)
+
+    if not all_hosts_conf.get('hosts'):
+        raise Exception("No hosts defined in hosts.toml")
+    if len(all_hosts_conf.get('hosts')) == 1 and not hosts:
+        hosts = ['ALL']
+    if not hosts:
+        raise Exception("You must pass in a comma separated list of hosts as the first argument. Use ALL to setup all hosts")
+    confs = []
+    for conf in all_hosts_conf.get('hosts'):
+        if not conf.get('host'):
+            raise Exception("No 'host' attribute defined for a host in your hosts.toml")
+        if hosts == ['ALL'] or conf.get('host') in hosts:
+            confs.append(conf)
+    if not confs:
+        raise Exception('No host confs found matching host list: %s' % hosts)
+    for conf in confs:
+        conf['os'] = conf.get('os', 'ubuntu')
+        if not conf['os'] in SUPPORTED_OSES:
+            raise Exception('Sorry, %s is not a supported operating system.')
+    return confs
+
+def get_login_user():
+    for name in ('LOGNAME', 'USER', 'LNAME', 'USERNAME'):
+        user = os.environ.get(name)
+        if user:
+            return user
+
+def load_users_from_toml(users_toml_path):
+    if users_toml_path and not os.path.isfile(users_toml_path):
+        raise Exception("Users file not found: " + users_toml_path)
+    if not os.path.isfile(users_toml_path):
+        return []
+    with open(users_toml_path) as f:
+        users_conf = toml.load(f)
+        return users_conf.get('users')
+    return []
+
+def initial_setup(host_conf, user, users):
+    host = host_conf['host']
+    !ssh -t $user@$host "sudo apt-get -y update"
+    !ssh -t $user@$host "sudo apt-get -y upgrade"
+    result =!ssh $user@$host "which ipython"
+    if not result or not '/ipython' in result[0]:
+        install(host_conf, user, 'python-pip', 'ipython')
+    !ssh -t $user@$host "sudo pip install toml"
+    for new_user in users:
+        _setup_user(user, host_conf['host'], new_user)
+
+def install(host_conf, user, *args):
+    host = host_conf['host']
+    cmd = ' '.join(args)
+    if host_conf.get('os', 'ubuntu') in ('ubuntu', 'debian'):
+        print 'Install ', args
+        !ssh -t $user@$host "sudo apt-get -y install $cmd"
+    else:
+        raise Exception('We only support ubuntu right now. Your OS is %s' % host_conf['os'])
+        
+def _setup_user(active_user, host, new_user_conf):
+    public_key = new_user_conf.get('public_key', '').strip()
+    if not public_key:
+        raise Exception('All configured users must have a public key')
+    # You generate a secure password hash for a password using unix command: mkpasswd -R 10000 -m sha-512
+    password_hash = new_user_conf.get('password_hash', '')
+    username = new_user_conf['username']
+    if not username:
+        raise Exception('The user has no username')
+    print 'Add user %s if does not exist' % username
+    with tempfile.NamedTemporaryFile() as f:
+        user_script = make_user_script_template % vars()
+        f.write(user_script)
+        f.flush()
+        file_name = f.name
+        #print 'Upload userscript ', user_script
+        #print 'TEMP NAME ', f.name
+        !scp -q $file_name $active_user@$host:.stallion-init-users-script.ipy
+        !ssh -t $active_user@$host 'sudo ipython .stallion-init-users-script.ipy'
+        !ssh $active_user@$host unlink .stallion-init-users-script.ipy
+
+make_user_script_template = '''
+import os
+
+username = "%(username)s"
+password_hash = "%(password_hash)s"
+public_key = "%(public_key)s"
+
+if not os.path.isdir("/home/" + username):
+    if password_hash:
+        print 'Adding user ' + username + ' with password'
+        !useradd $username -s /bin/bash -m -p '$password_hash'
+    else:
+        print 'Adding user ' + username + ' with no password'
+        !useradd $username -s /bin/bash -m
+        !passwd -de $username
+!usermod -a -G sudo $username
+!mkdir -p /home/$username/.ssh
+has_key = False
+if not os.path.isfile("/home/" + username + "/.ssh/authorized_keys"):
+    has_key = False
+else:
+    with open("/home/" + username + "/.ssh/authorized_keys") as f:
+        content = f.read()
+    if public_key in content:
+        has_key = True
+if not has_key:
+    print 'Adding public key'
+    with open("/home/" + username + "/.ssh/authorized_keys", 'a') as f:
+        f.write(public_key + "\\n\\n")
+    !chown -R {username}.{username} /home/$username/.ssh
+    !chmod 700 /home/$username/.ssh
+    !chmod 600 /home/$username/.ssh/authorized_keys
+
+'''    
+
+def sync_host(user, host_conf, hosts_toml_path):
+    if user == 'root':
+        raise Exception('You cannot run setup as root. Please run with --initial and set up non-root users on this box.')
+    print "Setting up host %s@%s " % (user, host_conf['host'])
+    host = host_conf['host']
+
+    result =!ssh $user@$host "which ipython"
+    if not result or not '/ipython' in result[0]:
+        print "You did not run initial setup for server %s! Run this script with --initial first!" % host
+
+    
+    directory = os.path.dirname(__file__)
+    if not directory or directory == '/':
+        directory = '.'
+    local_path =  directory + "/"
+    
+    cmd = "rsync -r --exclude=\".*\" %s %s@%s:~/setup-scripts" % (local_path, user, host)
+    print "Running rsync of setup scripts: ", cmd
+    !$cmd
+    print "Begin remote execution of setup script"
+    v_string = ''
+    if '-v' in sys.argv:
+        v_string = ' -v '
+    cmd = 'scp -q %s %s@%s:~/setup-scripts/hosts.toml' % (hosts_toml_path, user, host)
+    print "Uploading hosts toml file: %s" % cmd
+    !$cmd
+    !ssh -t $user@$host "cd ~/setup-scripts;sudo ipython ~/setup-scripts/stablehand/ubuntu/setup-this-server.ipy -- $host $v_string;"
+    
+
+main()

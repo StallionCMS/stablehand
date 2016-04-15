@@ -1,0 +1,20 @@
+
+[feature.nginx]
+ssl=true
+
+[feature.mysql]
+port = 3306
+
+[[hosts]]
+host="104.236.234.209"
+user="root"
+class="StallionServerConf"
+
+[hosts.feature.nginx]
+port=80
+ssl=false
+
+[[hosts]]
+host="104.238.135.96"
+user="root"
+class="StallionServerConf"

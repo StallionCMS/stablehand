@@ -1,0 +1,73 @@
+
+import argparse
+import os
+import sys
+import toml
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('sql_files', nargs=argparse.REMAINDER)
+    options =  parser.parse_args()
+    if not options.sql_files:
+        sys.stderr.write("You must pass in the sql files you want to run as command arguments")
+        exit()
+    for sql_file_name in options.sql_files:
+        exec_sql_file(sql_file_name)
+
+def exec_sql_file(sql_file_name):
+    print 'Preparing to migrate %s' % sql_file_name
+    base_path = os.getcwd()
+    sql_path = base_path + '/sql/'
+    if not os.path.isfile(sql_path + sql_file_name):
+        print 'SQL file not found: %s' % sql_path + sql_file_name
+        sys.exit()
+    
+    conf = {}
+    for path in ('conf/stallion.toml', 'conf/stallion.prod.toml'):
+        path = base_path + '/' + path
+        if os.path.isfile(path):
+            print 'Loading toml file ', path
+            with open(path) as f:
+                conf.update(toml.load(f))
+    server_remote_user = conf['database']['remoteUser']
+    db_remote_host = conf['database']['remoteHost']
+    db_name = conf['database']['url'].split('/')[-1]
+    db_user = conf['database']['username']
+    db_password = conf['database']['password']
+    sql_file_to_run = '~/%s-sql/%s' % (db_name, sql_file_name)
+    insert_sql_file = '~/%s-sql/insert.sql' % (db_name)
+
+    with open(sql_path + 'migrations-table.sql', 'w') as f:
+        f.write(migrations_table_sql)
+
+    with open(sql_path + 'insert.sql', 'w') as f:
+        f.write("\n\n;\nINSERT INTO `stallion_sql_migrations` (file_name) VALUES(\'{sql_file_name}');".format(**vars()))
+        
+    # Sync the sql folder
+    cmd = 'rsync -r %s %s@%s:~/%s-sql' % (sql_path, server_remote_user, db_remote_host, db_name)
+    print 'Syncing sql folder: %s' % cmd
+    !$cmd
+
+
+    # Make sure the migrations table exists
+    cmd = ur'''ssh {server_remote_user}@{db_remote_host} "mysql -u {db_user} -D {db_name} --password={db_password} < ~/{db_name}-sql/migrations-table.sql"'''.format(**vars())
+    print 'Ensure migrations table exists: ', cmd
+    !$cmd
+    
+    cmd = ur'''ssh {server_remote_user}@{db_remote_host} "cat {insert_sql_file} >> {sql_file_to_run};mysql -u {db_user} -D {db_name} --password={db_password} < {sql_file_to_run} "'''.format(**vars())
+    print 'Run migration %s command: %s' % (sql_file_name, cmd)
+    !$cmd
+    
+
+migrations_table_sql = '''
+CREATE TABLE IF NOT EXISTS `stallion_sql_migrations` (
+  `file_name` varchar(100) DEFAULT NULL,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`file_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+'''
+
+
+if __name__ == '__main__':
+    main()
