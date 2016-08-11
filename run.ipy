@@ -21,7 +21,11 @@ def main():
     hosts_file = options.hosts_file
     if not os.path.isfile(hosts_file) and os.path.isfile("conf/" + hosts_file):
         hosts_file = "conf/" + hosts_file
-    host_confs = load_hosts_from_toml(hosts_file, options.hosts)
+    hosts = []
+    for h in options.hosts:
+        hosts.extend(h.split(','))
+    hosts = [h for h in hosts if h.strip()]
+    host_confs = load_hosts_from_toml(hosts_file, hosts)
     user = options.user or get_login_user()
     for host_conf in host_confs:
         if options.is_initial:
