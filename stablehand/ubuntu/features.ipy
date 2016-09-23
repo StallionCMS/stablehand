@@ -141,10 +141,27 @@ class NginxFeature(BaseFeature):
                         
     def setup(self):
         install('nginx')
+        substitute(
+            '# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;',
+            'gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;',
+            '/etc/nginx/nginx.conf'
+        )
+        # For SLL on ELB's http://stackoverflow.com/questions/24603620/redirecting-ec2-elb-from-http-to-https
+        write(
+            '''
+server {
+  listen 81;
+  return 301 https://$host$request_uri;
+}
+''',
+            '/etc/nginx/conf.d/000-listen-81.conf'
+        )
     
     def on_ufw__add_rules(self):
         !ufw allow 80
+        !ufw allow 81
         !ufw allow 443
+        
 
 class Java8Feature(BaseFeature):
     def setup(self):
@@ -185,7 +202,8 @@ class MySql7Feature(BaseFeature):
             !wget -O /tmp/mysql-apt.deb https://dev.mysql.com/get/mysql-apt-config_0.6.0-1_all.deb
             !dpkg -i /tmp/mysql-apt.deb
             !apt-get update
-        install('mysql-server-5.7')
+
+        install('mysql-community-server')
         
 class MySql6Feature(BaseFeature):
     name = 'mysql56'
@@ -223,6 +241,25 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
         with open('/etc/cron.d/mysql-dump-to-file', 'w') as f:
             f.write(cron)
         !chmod 700 /etc/cron.d/mysql-dump-to-file
+
+class JenkinsFeature(BaseFeature):
+    def setup(self):
+        if os.path.isdir('/var/lib/jenkins') and os.path.isfile('/etc/init.d/jenkins'):
+            return
+        !wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | apt-key add -
+        !sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+        !apt-get update
+        install('jenkins')
+        install('git')
+        install('maven')
+        
+
+    def on_ufw__add_rules(self):
+        !ufw allow 8080
+
+class MavenFeature(BaseFeature):
+    def setup(self):
+        install('maven')
         
 class SetHostname(BaseFeature):
     name = 'set-hostname'

@@ -1,0 +1,16 @@
+
+extra_features = ["lets-encrypt-autorenew"]
+
+[feature.lets-encrypt-autorenew]
+domains = ["stablehand.stallion.io"]
+email = "maker@stallion.io"
+webroot_path = "/usr/share/nginx/html"
+
+[[hosts]]
+host="104.236.77.31"
+#host="stallion.io"
+class="StallionBasicScheme"
+
+
+
+

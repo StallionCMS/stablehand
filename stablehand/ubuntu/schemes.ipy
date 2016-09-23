@@ -18,6 +18,9 @@ class StallionMySqlScheme(BaseScheme):
     standard_features = ('ufw', 'utc', 'ntp', 'tmpreaper', 'lockdown')
     features = ('unattended_upgrades_security', 'curl', 'nginx', 'stallion', 'java8', 'swap', 'emacs', 'mysql57', 'mysql-dump', 'sudo-no-password')
 
+class JenkinsMySqlScheme(BaseScheme):
+    standard_features = ('ufw', 'utc', 'ntp', 'tmpreaper', 'lockdown')
+    features = ('unattended_upgrades_security', 'curl', 'nginx', 'java8', 'swap', 'emacs', 'mysql57', 'mysql-dump', 'sudo-no-password', 'jenkins')
     
 
     

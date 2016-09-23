@@ -29,11 +29,16 @@ def substitute(existing_text, new_text, file_path):
         f.write(content)
     return True
 
-def write_exact(new_text, file_path):
+def write_exact(new_text, file_path, before_text=None):
     with codecs.open(file_path, 'r', 'utf-8') as f:
         content = f.read()
     if not new_text in content:
-        content += new_text
+        if after_text:
+            i = content.find(before_text)
+            if i > -1:
+                content = content[:i] + new_text + content[i:]
+        else:
+            content += new_text
     else:
         return False
     with codecs.open(file_path, 'w', 'utf-8') as f:

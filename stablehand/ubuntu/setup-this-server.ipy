@@ -20,6 +20,17 @@ def main():
     host = sys.argv[1]
     print 'RUNNING setup-this-server'
     !echo $ubuntu_folder/features.ipy
+    print 'Ensure python3 exists'
+    !apt-get install -qq -y python3
+    print 'Ensure python3-pip exists'
+    !apt-get install -qq -y --force-yes python3-pip
+    print 'Ensure xonsh exists'    
+    !pip3 -qq install xonsh
+    print 'Ensure jinja2 exists'
+    !pip3 -qq install jinja2
+    print 'Ensure requests exists'
+    !pip3 -qq install requests
+    
     #!tail $ubuntu_folder/features.ipy
     ipython.magic("run " + ubuntu_folder + '/features.ipy')
     ipython.magic("run " + ubuntu_folder + '/schemes.ipy')
