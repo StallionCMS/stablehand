@@ -3,7 +3,8 @@ import os
 from stablehand.common.base import BaseFeature, common_folder, register_features, ConfigOption, info, debug, warn
 
 #imports: cp, write, substitute, write_exact, write_line, exists
-%run $common_folder/helpers.ipy
+#%run $common_folder/helpers.ipy
+from stablehand.common.helpers import *
 
 this_folder = os.path.abspath(os.path.join(common_folder, '../ubuntu'))
 files_folder = os.path.abspath(os.path.join(common_folder, '../ubuntu/files'))
@@ -22,32 +23,32 @@ class Lockdown(BaseFeature):
     name = 'lockdown'
     
     def setup(self):
-        !apt-get -y -q remove telnet
+        ![apt-get -y -q remove telnet]
         install('fail2ban')
         if os.environ['SUDO_USER'] == 'root':
             raise Exception('Cannot disable root when you are logged in as root!')
         if not os.path.isfile(os.environ['HOME'] + '/.ssh/authorized_keys'):
             raise Exception('Cannot disable password log in when you have no authorized keys!')
-        print 'Disabling root login'
+        print('Disabling root login')
         c1 = substitute('\nPermitRootLogin yes\n', '\nPermitRootLogin no\n', '/etc/ssh/sshd_config')
-        print 'Disabling password authentication'
+        print('Disabling password authentication')
         #c2 = write_exact('\nPasswordAuthentication no\n', '/etc/ssh/sshd_config')
         c2 = substitute('\n#PasswordAuthentication yes\n', '\nPasswordAuthentication no\n', '/etc/ssh/sshd_config')
         if c1 or c2:
             if os.path.isfile('/etc/init.d/ssh'):
-                !service ssh restart
+                ![service ssh restart]
             else:
-                !service sshd restart
+                ![service sshd restart]
                
 class UfwFeature(BaseFeature):
     name = 'ufw'
     EVENT_ADD_RULES = 'add_rules'
 
     def setup(self):
-        !ufw allow 22
-        !ufw limit ssh/tcp
+        ![ufw allow 22]
+        ![ufw limit ssh/tcp]
         self.trigger(self.EVENT_ADD_RULES)
-        !ufw --force enable
+        ![ufw --force enable]
 
 class SudoNoPassword(BaseFeature):
     name = 'sudo-no-password'
@@ -60,11 +61,12 @@ class SudoNoPassword(BaseFeature):
                 return
             content = content.replace('%sudo\tALL=(ALL:ALL) ALL', line)
         try:
-            !chmod 440 /etc/sudoers
+            os.chmod('/etc/sudoers', 0o640)
             with open('/etc/sudoers', 'w') as f:
                 f.write(content)
         finally:
-            !chmod 440 /etc/sudoers
+            os.chmod('/etc/sudoers', 0o440)
+
         
 class NtpFeature(BaseFeature):
     name = 'ntp'
@@ -88,11 +90,11 @@ class UtcFeature(BaseFeature):
     name = 'utc'
     
     def setup(self):
-        r =!date +%Z
-        if r[0] == 'UTC':
+        r =!(date +%Z)
+        if r.out == 'UTC':
             return
-        !ln -sf /usr/share/zoneinfo/UTC /etc/localtime
-        !dpkg-reconfigure --frontend noninteractive tzdata
+        ![ln -sf /usr/share/zoneinfo/UTC /etc/localtime]
+        ![dpkg-reconfigure --frontend noninteractive tzdata]
 
 class SwapFeature(BaseFeature):
     def __init__(self, conf, server):
@@ -106,10 +108,10 @@ class SwapFeature(BaseFeature):
         debug('allocating swap space of %sgb', self.gb)
         gb = self.gb
         #!fallocate -l {gb}G /mnt/{gb}GB.swap
-        !dd if=/dev/zero of=/mnt/{gb}GB.swap bs=1024 count=4524288
-        !chmod 600 /mnt/{gb}GB.swap
-        !mkswap /mnt/{gb}GB.swap
-        !swapon /mnt/{gb}GB.swap
+        ![dd if=/dev/zero @('of=/mnt/' + self.gb + 'GB.swap') bs=1024 count=4524288]
+        os.chmod('/mnt/%sGB.swap' % gb, 0o600)
+        !(@(['mkswap', '/mnt/' + self.gb + 'GB.swap']))
+        !(@(['swapon', '/mnt/' + self.gb + 'GB.swap']))
         line = "/mnt/%sGB.swap   none    swap    sw    0   0" % gb
         write_line(line, "/etc/fstab", line)
         
@@ -158,26 +160,28 @@ server {
         )
     
     def on_ufw__add_rules(self):
-        !ufw allow 80
-        !ufw allow 81
-        !ufw allow 443
+        ufw allow 80
+        ufw allow 81
+        ufw allow 443
         
 
 class Java8Feature(BaseFeature):
     def setup(self):
         try:
-            out = !java -version
-            if 'java version "1.8.' in out[0]:
-                print 'Java 8 already installed'
-                return
+            r = !(which java)
+            if r.rtn == 0:
+                r = !(java -version)
+                if 'java version "1.8.' in r.out:
+                    print('Java 8 already installed')
+                    return
         except NameError:
             pass
-        !apt-get -y -q install software-properties-common
-        !add-apt-repository -y ppa:webupd8team/java
-        !apt-get -y -q update
-        !echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | sudo /usr/bin/debconf-set-selections
-        !apt-get -y -q install oracle-java8-installer
-        !update-java-alternatives -s java-8-oracle
+        ![apt-get -y -q install software-properties-common]
+        ![add-apt-repository -y ppa:webupd8team/java]
+        ![apt-get -y -q update]
+        ![echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | sudo /usr/bin/debconf-set-selections]
+        ![apt-get -y -q install oracle-java8-installer]
+        ![update-java-alternatives -s java-8-oracle]
         
 class EmacsFeature(BaseFeature):
     def setup(self):
@@ -197,11 +201,11 @@ class MySql7Feature(BaseFeature):
     def setup(self):
         if exists('/usr/sbin/mysqld'):
             return
-        !apt-cache show mysql-server-5.7
+        apt-cache show mysql-server-5.7
         if _exit_code != 0:
-            !wget -O /tmp/mysql-apt.deb https://dev.mysql.com/get/mysql-apt-config_0.6.0-1_all.deb
-            !dpkg -i /tmp/mysql-apt.deb
-            !apt-get update
+            wget -O /tmp/mysql-apt.deb https://dev.mysql.com/get/mysql-apt-config_0.6.0-1_all.deb
+            dpkg -i /tmp/mysql-apt.deb
+            apt-get update
 
         install('mysql-community-server')
         
@@ -230,7 +234,7 @@ mysqldump -u {mysql_user} --password={mysql_password} --all-databases > {dump_fo
 '''.format(dump_folder=self.dump_folder, mysql_user=self.mysql_user, mysql_password=self.mysql_password)
         with open('/usr/local/bin/mysql-dump-to-file', 'w') as f:
             f.write(script)
-        !chmod 777 /usr/local/bin/mysql-dump-to-file
+        chmod 777 /usr/local/bin/mysql-dump-to-file
         cron = u'''\
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -240,22 +244,22 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 '''
         with open('/etc/cron.d/mysql-dump-to-file', 'w') as f:
             f.write(cron)
-        !chmod 700 /etc/cron.d/mysql-dump-to-file
+        chmod 700 /etc/cron.d/mysql-dump-to-file
 
 class JenkinsFeature(BaseFeature):
     def setup(self):
         if os.path.isdir('/var/lib/jenkins') and os.path.isfile('/etc/init.d/jenkins'):
             return
-        !wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | apt-key add -
-        !sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
-        !apt-get update
+        wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | apt-key add -
+        sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+        apt-get update
         install('jenkins')
         install('git')
         install('maven')
         
 
     def on_ufw__add_rules(self):
-        !ufw allow 8080
+        ufw allow 8080
 
 class MavenFeature(BaseFeature):
     def setup(self):
@@ -267,9 +271,8 @@ class SetHostname(BaseFeature):
     hostname = ConfigOption()
 
     def setup(self):
-        print 'Hostname ', self.hostname
         if self.hostname:
-            !hostnamectl set-hostname "{self.hostname}"
+            hostnamectl set-hostname @(self.hostname)
     
         
 class LetsEncrypt(BaseFeature):
@@ -286,7 +289,7 @@ class LetsEncrypt(BaseFeature):
             raise Exception("You did not configure an email for letsencrypt")
         install('git')
         install('bc')
-        print 'Lets encrypt domains: ', self.domains
+        print('Lets encrypt domains: %s' % self.domains)
         domain_slug = self.domains[0].replace('.', '-')
         domains_str = ', '.join(self.domains)
         ini = self.ini_template % dict(email=self.email, domains=domains_str, webroot_path=self.webroot_path)
@@ -299,18 +302,18 @@ class LetsEncrypt(BaseFeature):
         script_file_path = '/usr/local/sbin/le-renew-%s' % domain_slug
         with open(script_file_path, 'w') as f:
             f.write(script)
-        !chmod 700 $script_file_path
+        chmod 700 $script_file_path
         cron_path = '/etc/cron.d/lets-encrypt-renewal-%s' % domain_slug
         with open(cron_path, 'w') as f:
             f.write(self.cron_template % dict(script_file_path=script_file_path, domain=domain_slug))
-        !chmod 600 $cron_path
+        chmod 600 $cron_path
         if not os.path.isdir("/opt/letsencrypt"):
-            !git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt/
+            git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt/
         if not os.path.isdir("/etc/letsencrypt/live/%s" % self.domains[0]):
             cmd = '/opt/letsencrypt/letsencrypt-auto certonly --agree-tos -a webroot --config %s' % config_file_path
-            print "Generating encryption certificate using command: \n%s" % cmd
-            !$cmd
-        print 'Add the generated fullchain.pem and privkey.pem to the [publishing] section of your stallion.toml'
+            print("Generating encryption certificate using command: \n%s" % cmd)
+            ![@(cmd)]
+        print('Add the generated fullchain.pem and privkey.pem to the [publishing] section of your stallion.toml')
 
     cron_template = '''
 30 2 * * 1 root %(script_file_path)s > /tmp/le-renewal-%(domain)s.log
@@ -329,7 +332,7 @@ webroot-path = %(webroot_path)s
 '''        
 
     
-print 'REGISTER FEATURES'
+
 
 register_features(globals())
 

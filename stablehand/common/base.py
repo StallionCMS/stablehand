@@ -117,7 +117,7 @@ class BaseFeature(object):
     conf = None
 
     def __new__(typ, *args, **kwargs):
-        obj = object.__new__(typ, *args, **kwargs)
+        obj = super(BaseFeature, typ).__new__(typ)
         obj.config_options_by_name = {}
         property_by_name = {}
         attrs, cls = args
@@ -212,7 +212,7 @@ class BaseScheme(object):
                 continue
             final_features.append(feature)
             dedupes.add(feature)
-        print "Features to install: ", final_features
+        print("Features to install: %s" % final_features)
         return final_features
         
 

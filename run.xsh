@@ -1,5 +1,6 @@
 #!/usr/local/bin/xonsh
 import argparse
+import inspect
 import json
 import os
 import sys
@@ -32,11 +33,11 @@ def main():
         hosts_file = options.hosts_file
         if not os.path.isfile(hosts_file) and os.path.isfile("conf/" + hosts_file):
             hosts_file = "conf/" + hosts_file
-            hosts = []
-            for h in options.hosts:
-                hosts.extend(h.split(','))
-            hosts = [h for h in hosts if h.strip()]
-            host_confs = load_hosts_from_toml(hosts_file, hosts)
+        hosts = []
+        for h in options.hosts:
+            hosts.extend(h.split(','))
+        hosts = [h for h in hosts if h.strip()]
+        host_confs = load_hosts_from_toml(hosts_file, hosts)
         for host_conf in host_confs:    
             if action == 'initial':
                 users = load_users_from_toml(options.users_file)
@@ -91,9 +92,9 @@ def sync_users(host_conf, user, users):
         ![@(args)]
 
     r = ![ssh -t $login 'sudo xonsh add-users.xsh;']
-    assert r.rtn == 0
+    verify(r)
     r = !(ssh -t $login 'sudo xonsh initial-setup-this-server.xsh')
-    assert r.rtn == 0
+    verify(r)
         
     !(ssh $login unlink stallion-init-users-script.ipy)
     ![ssh $login unlink add-users.xsh]
@@ -117,13 +118,13 @@ def deploy_to_host(env, env_conf, user, host, origin):
         raise NotImplementedError('Origin URLs not implemented yet')
     elif not origin.startswith('/'):
         origin = os.path.join(os.getcwd(), origin)
-    if origin.endswith('/'):
-        origin = origin[:-1]
-    if not os.path.isdir(origin) or not os.path.isfile(origin + '/conf/stallion.toml'):
-        raise Exception('Origin path %s is not valid. Could not find file %s/conf/stallion.toml' % (origin, origin))
+    if not origin.endswith('/'):
+        origin = origin + '/'
+    if not os.path.isdir(origin) or not os.path.isfile(origin + 'conf/stallion.toml'):
+        raise Exception('Origin path %s is not valid. Could not find file %sconf/stallion.toml' % (origin, origin))
     folder = env_conf['rootFolder']
     wharf = '.stallion-wharf-' + folder.strip('/').replace('/', '--')
-    wharf = '~/' + wharf
+    wharf = '~/' + wharf + '/'
     args = [
         "rsync",
         "-r", # recursive
@@ -150,7 +151,7 @@ def deploy_to_host(env, env_conf, user, host, origin):
         ]
     
     r = ![@(args)]
-    assert r.rtn == 0, 'Rsync command failed!'
+    verify(r, 'rsync of application folder failed with errors.')
 
 
     data = {
@@ -173,21 +174,24 @@ def deploy_to_host(env, env_conf, user, host, origin):
     
 
                   
-    r = ![ssh -t $login "cd ~/setup-scripts;sudo ipython ~/setup-scripts/stablehand/ubuntu/deploy-to-this-server.ipy -- $host $v_string;"]
-    assert r.rtn == 0
+    r = ![@(args)]
+    verify(r, 'Deploy script exited with errors.')
 
         
 def provision_host(user, host_conf, hosts_toml_path):
-    prepare_to_run_scripts(user, host_conf)
+    host = host_conf['host']
+    prepare_to_run_scripts(user, host)
     print("Begin remote execution of setup script")
-    v_string = ''
+    $v_string = ''
     if '-v' in sys.argv:
-        v_string = ' -v '
-    cmd = 'scp -q %s %s@%s:~/setup-scripts/hosts.toml' % (hosts_toml_path, user, host)
+        $v_string = ' -v '
+    cmd = ['scp', '-q', hosts_toml_path, '%s@%s:~/setup-scripts/hosts.toml' % (user, host)]
     print("Uploading hosts toml file: %s" % cmd)
-    ![@(cmd)]
+    r = ![@(cmd)]
     $login = user + '@' + host
-    ssh -t $login "cd ~/setup-scripts;sudo ipython ~/setup-scripts/stablehand/ubuntu/setup-this-server.ipy -- $host $v_string;"
+    $host = host
+    r = ![ssh -t $login "cd ~/setup-scripts;sudo xonsh ~/setup-scripts/stablehand/ubuntu/setup-this-server.xsh -- $host $v_string;"]
+    verify(r, 'Provision host exited with errors')
 
 
 
@@ -200,25 +204,21 @@ def prepare_to_run_scripts(user, host):
         raise Exception('You cannot run setup as root. Please run with --initial and set up non-root users on this box.')
     print("Setting up host %s@%s " % (user, host))
     $login = user + '@' + host
-    result = ![ssh $login "which ipython"]
-    if result.rtn != 0:
-        print("You did not run initial setup for server %s! Run this script with --initial first!" % host)
-        return
-    result = ![ssh $login "which xonsh"]
-    if result.rtn != 0:
-        print("You did not run initial setup for server %s! Run this script with --initial first!" % host)
-        return
+    #result = !(ssh $login "which ipython")
+    #if result.rtn != 0:
+    #    print("You did not run initial setup for server %s! Run this script with --initial first!" % host)
+    #    return
+    #result = !(ssh $login "which xonsh")
+    #if result.rtn != 0:
+    #    print("You did not run initial setup for server %s! Run this script with --initial first!" % host)
+    #    return
     
-    #directory = os.path.dirname(__file__)
-    #if not directory or directory == '/':
-    #    directory = '.'
-    #local_path =  directory + "/"
     
-    print('local_path ' + local_path)
-    cmd = ['rsync', '-r', "--exclude=\".*\" %s" % local_path, "%s@%s:~/setup-scripts" % (user, host)]
+    ![ssh $login mkdir -p @('~/setup-scripts')]
+    cmd = ['rsync', '-r', "--exclude=\".*\"", local_path, "%s@%s:~/setup-scripts" % (user, host)]
     print("Running rsync of setup scripts: ", cmd)
     r = ![@(cmd)]
-    assert r.rtn == 0
+    verify(r, "rsync of stablehand scripts failed")
 
                   
 def load_hosts_from_toml(toml_path, hosts):    
@@ -287,7 +287,14 @@ def upload_string(user, host, content, target_file):
         f.flush()
         args = ['scp', '-q', f.name, user + '@' + host + ':' + target_file]
         ![@(args)]
-        
+
+def verify(cmd_result, msg='Command exited with errors.'):
+    if cmd_result.rtn == 0:
+        return    
+    frame = inspect.stack()[1]
+    sys.stderr.write('\n\nERROR %s:%s line %s -- %s\n\n' % (frame.filename, frame.function, frame.lineno, msg))
+    
+    sys.exit(1)
 
 def _get_env_conf(deployment_file, env):
     if os.path.isfile(deployment_file):

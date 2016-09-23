@@ -1,23 +1,28 @@
 #!/usr/local/bin/ipython
+import codecs
+import os
+
+def info(msg):
+    print(msg)
 
 def install(*args):
-    cmd = ' '.join(args)
+    cmd_args = ['apt-get', 'install', '-qq', '-y'] + list(args)
     if os.path.isfile('/usr/bin/apt-get'):
-        info('Install if does not exist: apt-get install %s' % cmd)
-        !apt-get install -qq -y $cmd
+        info('Install if does not exist: apt-get install %s' % ' '.join(args))
+        ![@(cmd_args)]
     else:
         raise Exception('apt-get does not exist on this system. Stablehand only supports ubuntu right now.')
 
 def cp(source, dest, mode='644'):
-    !cp $source $dest
-    !chmod $mode $dest
+    ![@(['cp', source, dest])]
+    ![@(['chmod', mode, dest])]
         
 def write(s, dest, mode='644'):
     if not os.path.isdir(os.path.dirname(dest)):
         raise Exception("Tried to write file '%s' but parent directory does not exist!" % dest)
     with codecs.open(dest, 'w', 'utf-8') as f:
          f.write(s)
-    !chmod $mode $dest
+    ![@(['chmod', mode, dest])]         
 
 def substitute(existing_text, new_text, file_path):
     with codecs.open(file_path, 'r', 'utf-8') as f:

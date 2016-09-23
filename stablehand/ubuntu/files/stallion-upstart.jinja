@@ -1,0 +1,26 @@
+
+
+
+
+start on (local-filesystems and net-device-up IFACE!=lo)
+console output
+
+setuid stallionServer
+setgid stallion
+
+script
+    sleep 3
+    NOW=$(date +"%Y-%m")
+    exec 2>>/tmp/log/stallion/upstart-{{file_base}}-$NOW.log
+    set -x
+    echo "Now start stallion"
+    export STALLION_HOST="{{host}}"
+    export STALLION_DOMAIN="{{domain}}"
+    export STALLION_DEPLOY_TIME="{{now_stamp}}"
+    exec {{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
+    
+end script
+
+respawn
+# give up if I respawn 3 times in 60 seconds...
+respawn limit 3 60
