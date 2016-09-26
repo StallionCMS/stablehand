@@ -29,6 +29,7 @@ def main():
     apt-get install -qq -y python3
     print('Ensure python3-pip exists')
     apt-get install -qq -y --force-yes python3-pip
+    pip3 -qq install --upgrade pip
     print('Ensure xonsh exists')
     pip3 -qq install xonsh
     print('Ensure jinja2 exists')

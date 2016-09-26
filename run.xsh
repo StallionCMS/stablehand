@@ -261,9 +261,13 @@ def get_login_user():
             return user
 
 def load_users_from_toml(users_toml_path):
+    
     if users_toml_path:
         if not os.path.isfile(users_toml_path):
-            raise Exception("Users file not found: " + users_toml_path)
+            if os.path.isfile('conf/' + users_toml_path):
+                users_toml_path = 'conf/' + users_toml_path
+            else:
+                raise Exception("Users file not found: " + users_toml_path)
     if not os.path.isfile(users_toml_path):
         return []
     with open(users_toml_path) as f:

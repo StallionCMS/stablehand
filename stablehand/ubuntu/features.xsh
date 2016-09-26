@@ -119,9 +119,10 @@ class SwapFeature(BaseFeature):
         
 class TmpreaperFeature(BaseFeature):
     def setup(self):
-        write_line("TMPTIME=14", '/etc/default/rcS', 'TMPTIME=', mode='644')
-        cp(files_folder + '/tmpreaper.conf', '/etc/tmpreaper.conf')
-        install('tmpreaper')
+        write_line("TMPTIME=14", '/etc/default/rcS', 'TMPTIME=', mode='644')        
+        with ${...}.swap(DEBIAN_FRONTEND='noninteractive'):
+            install('tmpreaper')
+            cp(files_folder + '/tmpreaper.conf', '/etc/tmpreaper.conf')
         #cp('core/feature_assets/tmpreaper_cron', '/etc/cron.daily/tmpreaper', mode='600')
         
 class UnattendedUpgradesSecurityFeature(BaseFeature):
@@ -160,9 +161,9 @@ server {
         )
     
     def on_ufw__add_rules(self):
-        ufw allow 80
-        ufw allow 81
-        ufw allow 443
+        ![ufw allow 80]
+        ![ufw allow 81]
+        ![ufw allow 443]
         
 
 class Java8Feature(BaseFeature):
@@ -203,13 +204,14 @@ class MySql7Feature(BaseFeature):
     def setup(self):
         if exists('/usr/sbin/mysqld'):
             return
-        apt-cache show mysql-server-5.7
-        if _exit_code != 0:
-            wget -O /tmp/mysql-apt.deb https://dev.mysql.com/get/mysql-apt-config_0.6.0-1_all.deb
-            dpkg -i /tmp/mysql-apt.deb
-            apt-get update
-
-        install('mysql-community-server')
+        r = ![apt-cache show mysql-server-5.7]
+        if r.rtn == 0:
+            install('mysql-server-5.7')
+        else:
+            ![wget -O /tmp/mysql-apt.deb https://dev.mysql.com/get/mysql-apt-config_0.6.0-1_all.deb]
+            ![dpkg -i /tmp/mysql-apt.deb]
+            ![apt-get update]
+            install('mysql-community-server')
         
 class MySql6Feature(BaseFeature):
     name = 'mysql56'
@@ -232,11 +234,11 @@ class MySqlDumpFeature(BaseFeature):
         script = u'''\
 mkdir -p {dump_folder}
 NOW=$(date +"%m-%d-%Y-%H-%M-%S")
-mysqldump -u {mysql_user} --password={mysql_password} --all-databases > {dump_folder}/thought-duel-$NOW.sql
+mysqldump -u {mysql_user} --password={mysql_password} --all-databases > {dump_folder}/mysql-localhost-$NOW.sql
 '''.format(dump_folder=self.dump_folder, mysql_user=self.mysql_user, mysql_password=self.mysql_password)
         with open('/usr/local/bin/mysql-dump-to-file', 'w') as f:
             f.write(script)
-        chmod 777 /usr/local/bin/mysql-dump-to-file
+        ![chmod 777 /usr/local/bin/mysql-dump-to-file]
         cron = u'''\
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -246,22 +248,22 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 '''
         with open('/etc/cron.d/mysql-dump-to-file', 'w') as f:
             f.write(cron)
-        chmod 700 /etc/cron.d/mysql-dump-to-file
+        ![chmod 700 /etc/cron.d/mysql-dump-to-file]
 
 class JenkinsFeature(BaseFeature):
     def setup(self):
         if os.path.isdir('/var/lib/jenkins') and os.path.isfile('/etc/init.d/jenkins'):
             return
-        wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | apt-key add -
-        sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
-        apt-get update
+        ![wget -q -O - https://pkg.jenkins.io/debian/jenkins-ci.org.key | apt-key add -]
+        ![sh -c 'echo deb http://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list']
+        ![apt-get update]
         install('jenkins')
         install('git')
         install('maven')
         assert os.path.isdir('/var/lib/jenkins'), 'Jenkins failed to install!'
 
     def on_ufw__add_rules(self):
-        ufw allow 8080
+        ![ufw allow 8080]
 
 class MavenFeature(BaseFeature):
     def setup(self):
@@ -274,7 +276,7 @@ class SetHostname(BaseFeature):
 
     def setup(self):
         if self.hostname:
-            hostnamectl set-hostname @(self.hostname)
+            ![hostnamectl set-hostname @(self.hostname)]
     
         
 class LetsEncrypt(BaseFeature):
@@ -289,7 +291,10 @@ class LetsEncrypt(BaseFeature):
             raise Exception("You did not configure a list of domains for letsencrypt")
         if not self.email:
             raise Exception("You did not configure an email for letsencrypt")
-        install('git')
+        if not os.path.isfile('/usr/local/bin/certbot-auto'):
+            install('wget')
+            ![wget -O /usr/local/bin/certbot-auto https://dl.eff.org/certbot-auto]
+            ![chmod 755 /usr/local/bin/certbot-auto]
         install('bc')
         print('Lets encrypt domains: %s' % self.domains)
         domain_slug = self.domains[0].replace('.', '-')
@@ -300,22 +305,28 @@ class LetsEncrypt(BaseFeature):
             f.write(ini)
         with open(files_folder + '/le-renew-webroot', 'r') as f:
             script = f.read()
-        script = script.replace('$$CONFIG_FILE$$', config_file_path)
-        script_file_path = '/usr/local/sbin/le-renew-%s' % domain_slug
-        with open(script_file_path, 'w') as f:
+        exec_path = '/usr/local/bin/certbot-auto'
+        script = script.replace('$$CONFIG_FILE$$', config_file_path).replace('$$EXEC_NAME$$', exec_path)
+        $script_file_path = script_file_path = '/usr/local/sbin/le-renew-%s' % domain_slug
+        with open($script_file_path, 'w') as f:
             f.write(script)
-        chmod 700 $script_file_path
-        cron_path = '/etc/cron.d/lets-encrypt-renewal-%s' % domain_slug
-        with open(cron_path, 'w') as f:
+        ![chmod 700 $script_file_path]
+        $cron_path = '/etc/cron.d/lets-encrypt-renewal-%s' % domain_slug
+        with open($cron_path, 'w') as f:
             f.write(self.cron_template % dict(script_file_path=script_file_path, domain=domain_slug))
-        chmod 600 $cron_path
-        if not os.path.isdir("/opt/letsencrypt"):
-            git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt/
+        ![chmod 600 $cron_path]
         if not os.path.isdir("/etc/letsencrypt/live/%s" % self.domains[0]):
-            cmd = '/opt/letsencrypt/letsencrypt-auto certonly --agree-tos -a webroot --config %s' % config_file_path
+            cmd = [exec_path, 'certonly', '--agree-tos', '-a', 'webroot', '--config', config_file_path]
             print("Generating encryption certificate using command: \n%s" % cmd)
-            ![@(cmd)]
-        print('Add the generated fullchain.pem and privkey.pem to the [publishing] section of your stallion.toml')
+            r = ![@(cmd)]
+            if not r.rtn == 0:
+                raise Exception('Error configuring lets-encrypt')
+            print('Add the generated fullchain.pem and privkey.pem to the [publishing] section of your stallion.toml')
+        r = !(@(script_file_path))
+        if not r.rtn == 0:
+            sys.stderr.write('Result from running %s' % script_file_path + '\n\n' + r.out + '\n\n' + r.stderr)
+            raise Exception("Lets Encrypt is not configured correctly, auto renew script failed.")
+            
 
     cron_template = '''
 30 2 * * 1 root %(script_file_path)s > /tmp/le-renewal-%(domain)s.log

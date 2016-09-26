@@ -9,7 +9,9 @@ def install(*args):
     cmd_args = ['apt-get', 'install', '-qq', '-y'] + list(args)
     if os.path.isfile('/usr/bin/apt-get'):
         info('Install if does not exist: apt-get install %s' % ' '.join(args))
-        ![@(cmd_args)]
+        r = ![@(cmd_args)]
+        if r.rtn != 0:
+            raise Exception('Install command failed: %s' % args)
     else:
         raise Exception('apt-get does not exist on this system. Stablehand only supports ubuntu right now.')
 
@@ -83,7 +85,7 @@ def write_line(line, dest, starts_with='', mode='644', matcher=None):
         if matcher and matcher.match(existing_line):
             found = True
             new_lines.append(line)
-        elif starts_with and line.startswith(starts_with):
+        elif starts_with and existing_line.startswith(starts_with):
             found = True
             new_lines.append(line)
         else:
