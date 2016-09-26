@@ -75,8 +75,8 @@ server {
     listen 443;
     server_name {{domain}} {{alias_domains_str}};
     ssl on;
-    ssl_certificate {{ssl_crt}};
-    ssl_certificate_key {{ssl_key}};
+    ssl_certificate {{ssl_cert_chain}};
+    ssl_certificate_key {{ssl_private_key}};
     #enables all versions of TLS, but not SSLv2 or 3 which are weak and now deprecated.
     ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
 
@@ -108,8 +108,8 @@ server {
     listen 443;
     server_name {{redirect_domains_str}};
     ssl on;
-    ssl_certificate {{ssl_crt}};
-    ssl_certificate_key {{ssl_key}};
+    ssl_certificate {{ssl_cert_chain}};
+    ssl_certificate_key {{ssl_private_key}};
     #enables all versions of TLS, but not SSLv2 or 3 which are weak and now deprecated.
     ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
 

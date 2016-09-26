@@ -171,7 +171,7 @@ class Java8Feature(BaseFeature):
             r = !(which java)
             if r.rtn == 0:
                 r = !(java -version)
-                if 'java version "1.8.' in r.out:
+                if 'java version "1.8.' in r.stderr:
                     print('Java 8 already installed')
                     return
         except NameError:
@@ -182,6 +182,8 @@ class Java8Feature(BaseFeature):
         ![echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | sudo /usr/bin/debconf-set-selections]
         ![apt-get -y -q install oracle-java8-installer]
         ![update-java-alternatives -s java-8-oracle]
+        r = !(java -version)
+        assert 'java version "1.8.' in r.stderr, 'Java failed to install correctly'
         
 class EmacsFeature(BaseFeature):
     def setup(self):
@@ -256,7 +258,7 @@ class JenkinsFeature(BaseFeature):
         install('jenkins')
         install('git')
         install('maven')
-        
+        assert os.path.isdir('/var/lib/jenkins'), 'Jenkins failed to install!'
 
     def on_ufw__add_rules(self):
         ufw allow 8080
@@ -331,8 +333,13 @@ webroot-path = %(webroot_path)s
 
 '''        
 
-    
 
+def verify(result, msg='Command failed.', expect=None):
+    if result.rtn == 0:
+        if expect:
+            if expect in result.out:
+                return True
+    raise Exception(msg)
 
 register_features(globals())
 

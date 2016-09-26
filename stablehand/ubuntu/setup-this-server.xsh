@@ -8,7 +8,7 @@ import os
 import re
 import string
 import sys
-import toml
+
 
 print(os.getcwd())
 print(sys.path)
@@ -35,6 +35,8 @@ def main():
     pip3 -qq install jinja2
     print('Ensure requests exists')
     pip3 -qq install requests
+    print('Ensure toml exists')
+    pip3 -qq install toml
     
     #!tail $ubuntu_folder/features.ipy
     #ipython.magic("run " + ubuntu_folder + '/features.ipy')
@@ -49,6 +51,7 @@ def main():
                 print('IMPORT ', full_path)
                 #%load $full_path
     Runner(host).run()
+    print("Provisioning script complete.")
 
 #USER = os.environ['USER']
 #HOME = os.environ['HOME']

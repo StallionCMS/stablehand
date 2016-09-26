@@ -10,7 +10,6 @@ import re
 import subprocess
 import sys
 import time
-import toml
 
 
 print('Deploy to this server!!!!!')
@@ -39,10 +38,11 @@ class Deployer():
         self.env = conf['env']
         self.host = conf['host']
         d = conf['env_conf']
+        opts = conf['options']
         # Where in the file system the app will live
         self.root = d['rootFolder']
         # URLs to check for a 200 response during deployment
-        self.check_urls = d.get('check_urls', ['/'])
+        self.check_urls = d.get('checkUrls', ['/'])
         self.base_port = d.get('basePort', 12500)
         # The domain at which the application will be publicly accessible
         self.domain = d['domain']
@@ -51,9 +51,10 @@ class Deployer():
         self.alias_domains = d.get('aliasDomains', [])
         self.alias_domains_str = ' '.join(self.alias_domains)        
         # Domains that redirect to the main domain
-        self.redirect_domains = d.get('aliasDomains', [])
+        self.redirect_domains = d.get('redirectDomains', [])
         self.redirect_domains_str = ' '.join(self.redirect_domains)
-        self.force_cleanup_bad_deploy = True
+        self.force_cleanup_bad_deploy = opts.get('force_cleanup_bad_deploy', False)
+        self.run_sql_migrations = opts.get('run_sql_migrations', False)
         # nginx ssl cert chain file path
         self.ssl_cert_chain = d.get('sslCertChain', '')
         # nginx ssl cert private key file
@@ -63,10 +64,10 @@ class Deployer():
         if self.ssl_enabled:
             self.ssl_exists = os.path.isfile(self.ssl_cert_chain) and os.path.isfile(self.ssl_private_key)
         # should always redirect non-ssl to ssl
-        self.redirect_to_ssl = d.get('redirect_to_ssl', False) and self.ssl_enabled and self.ssl_exists
-        self.nginx_client_max_body_size = conf.get('nginx_client_max_body_size', '30M')
-        self.nginx_proxy_read_timeout =  conf.get('nginx_proxy_read_timeout', '3600')
-        self.executable_name = conf.get('executable_name', '')
+        self.redirect_to_ssl = d.get('redirectToSsl', False) and self.ssl_enabled and self.ssl_exists
+        self.nginx_client_max_body_size = conf.get('nginxClientMaxBodySize', '30M')
+        self.nginx_proxy_read_timeout =  conf.get('nginxProxyReadTimeout', '3600')
+        self.executable_name = conf.get('executableName', '')
         if not self.executable_name:
             files = [n for n in os.listdir(wharf + '/bin') if not n.startswith('.') and not n.startswith('~')]
             if files:
@@ -74,7 +75,7 @@ class Deployer():
         if not self.executable_name:
             self.executable_name = 'stallion'
         # Force a complete deploy
-        self.full_rebuild = conf.get('fullRebuild', False)
+        self.full_rebuild = opts.get('force_full_deploy', False)
         self.now_stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S %p')
         self.active = ''        
         self.deploying = ''
@@ -205,6 +206,8 @@ class Deployer():
         self._mark_deploying()
         self.rsync_wharf_to_target()
         good("New deploy directory has been prepared")
+        if self.run_sql_migrations:
+            self.run_migrations()
         self.check_for_migrations()
         self.try_test_start_instance()
         self.start_stallion_instance()
@@ -251,7 +254,14 @@ class Deployer():
         if os.path.isfile(source + "conf/secrets.json"):
             os.unlink(source + "conf/secrets.json")
 
-        
+    def run_migrations(self):
+        cmd = ["sudo", "-u", "stallionServer", self.root + "/" + self.deploying + "/bin/" + self.executable_name, "sql-migrate", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env]
+        r =![@(cmd)]
+        if r.rtn != 0:
+            warn("SQL migrations did not execute properly.")
+            sys.exit(1)
+        else:
+            good("SQL migrations run.")
                 
 
     def check_for_migrations(self):
@@ -398,7 +408,7 @@ exec sudo -u stallionServer {root}/{deploying}/bin/{executable_name} serve -loca
             site_url = "https://"
         paths = self.check_urls or ['/']
         primary_domain = self.domain
-        site_url = 'http://localhost' + paths[0]
+        site_url = 'http://127.0.0.1' + paths[0]
 
         cmd = ['curl', '--header', 'Host: ' + primary_domain, '-v', site_url]
         info("Fetching url via nginx " + ' '.join(cmd))
@@ -413,7 +423,7 @@ exec sudo -u stallionServer {root}/{deploying}/bin/{executable_name} serve -loca
         good("New Stallion instance is now live!")
             
     def cleanup(self):
-        info("sleep for 5 seconds before tearing down previous version")
+        info("sleep for 5 seconds before tearing down previous vesrion")
         time.sleep(5)
         info("Stoping previous instance and cleaning up lock files")
 

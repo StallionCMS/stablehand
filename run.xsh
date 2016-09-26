@@ -20,6 +20,9 @@ def main():
     parser.add_argument('--users-file', dest='users_file', default='users.toml')
     parser.add_argument('--origin', dest='origin', default='.')
     parser.add_argument('--env', dest='env', default='')
+    parser.add_argument('--force-cleanup', dest='force_cleanup_bad_deploy', default=False, action='store_true')
+    parser.add_argument('--force-full-deploy', dest='force_full_deploy', default=False, action='store_true')
+    parser.add_argument('--run-sql-migrations', dest='run_sql_migrations', default=False, action='store_true')    
     parser.add_argument('action', nargs=1, choices=['initial', 'provision', 'deploy'])
     parser.add_argument('hosts', nargs=argparse.REMAINDER)
     options =  parser.parse_args()
@@ -28,7 +31,7 @@ def main():
     print('action! ', action)
     if action == 'deploy':
         print('env ', options.env)
-        deploy(user, options.deployment_file, options.origin, options.env)
+        deploy(user, options.deployment_file, options.origin, options.env, options)
     else:
         hosts_file = options.hosts_file
         if not os.path.isfile(hosts_file) and os.path.isfile("conf/" + hosts_file):
@@ -100,15 +103,15 @@ def sync_users(host_conf, user, users):
     ![ssh $login unlink add-users.xsh]
 
 
-def deploy(user, deployment_file, origin, env):
+def deploy(user, deployment_file, origin, env, options):
     if not len(env):
         raise ValueError('Option --env is required')
     env_conf = _get_env_conf(deployment_file, env)
     for host in env_conf['hosts']:
         prepare_to_run_scripts(user, host)
-        deploy_to_host(env, env_conf, user, host, origin)
+        deploy_to_host(env, env_conf, user, host, origin, options)
 
-def deploy_to_host(env, env_conf, user, host, origin):
+def deploy_to_host(env, env_conf, user, host, origin, options):
     
     #origin = env_conf.get('origin', 'local-rsync')
     #if origin == 'local-rsync':
@@ -152,12 +155,12 @@ def deploy_to_host(env, env_conf, user, host, origin):
     
     r = ![@(args)]
     verify(r, 'rsync of application folder failed with errors.')
-
-
+    print('OPTIONS ', options.__dict__)
     data = {
         'env': env,
         'env_conf': env_conf,
-        'host': host
+        'host': host,
+        'options': options.__dict__
     }
     s = json.dumps(data)
     upload_string(user, host, s, wharf + '/deploy_conf.json')
