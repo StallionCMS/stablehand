@@ -53,7 +53,7 @@ def write_exact(new_text, file_path, before_text=None):
     return True
         
 
-def write_line(line, dest, starts_with='', mode='644', matcher=None):
+def write_line(line, dest, starts_with='', mode='644', re_matcher=None):
     '''
     Adds the passed in line to a file.
 
@@ -71,18 +71,19 @@ def write_line(line, dest, starts_with='', mode='644', matcher=None):
     line = line.strip()
     if '\n' in line:
         raise Exception('argument @line must be a single line, with no newlines!')
-
     if not exists(dest):
         write(line + '\n', dest, mode=mode)
         return
     with codecs.open(dest, 'r', 'utf-8') as f:
         source = f.read()
     new_lines = []
-    if not starts_with and not matcher:
-        raise Exception('write_line must be called with either starts_with string or a compiled regex matcher!')
+    $starts_with = starts_with
+    if not $starts_with:
+        if not re_matcher:
+            raise Exception('write_line must be called with either starts_with string or a compiled regex matcher!')
     found = False
     for existing_line in source.split('\n'):
-        if matcher and matcher.match(existing_line):
+        if re_matcher and re_matcher.match(existing_line):
             found = True
             new_lines.append(line)
         elif starts_with and existing_line.startswith(starts_with):

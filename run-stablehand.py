@@ -3,6 +3,9 @@ import argparse
 import inspect
 import json
 import os
+from plumbum import SshMachine
+from plumbum.cmd import ls
+from plumbum import FG, BG
 import sys
 import toml
 import tempfile
@@ -11,26 +14,61 @@ local_path = os.path.abspath(os.path.dirname(os.path.join(os.getcwd(), sys.argv[
 
 SUPPORTED_OSES = ['ubuntu']
 
+def make_initial_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument('--user', dest='user')
+    p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
+    p.add_argument('--users-file', dest='users_file', default='users.toml')
+    p.add_argument('--hosts', dest='hosts', default='ALL')
+    return p
+
+def make_provision_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument('--user', dest='user')
+    p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
+    p.add_argument('--hosts', dest='hosts', default='ALL')
+    return p
+
+def make_sync_user_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument('--user', dest='user')
+    p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
+    p.add_argument('--users-file', dest='users_file', default='users.toml')
+    p.add_argument('--hosts', dest='hosts', default='ALL')
+    return p
+
+def make_deploy_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument('--user', dest='user')
+    p.add_argument('--deployment-file', dest='deployment_file', default='deployment.toml')
+    p.add_argument('--origin', dest='origin', default='.')
+    p.add_argument('--env', dest='env', default='')
+    p.add_argument('--force-cleanup', dest='force_cleanup_bad_deploy', default=False, action='store_true')
+    p.add_argument('--force-full-deploy', dest='force_full_deploy', default=False, action='store_true')
+    p.add_argument('--run-sql-migrations', dest='run_sql_migrations', default=False, action='store_true')
+    return p
+
+
+action_to_parser = {
+    'deploy': make_deploy_parser(),
+    'sync-users': make_sync_user_parser(),
+    'provision': make_provision_parser(),
+    'initial': make_initial_parser()
+}
+
+
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--initial', dest='is_initial', action='store_true')
-    parser.add_argument('--user', dest='user')
-    parser.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
-    parser.add_argument('--deployment-file', dest='deployment_file', default='deployment.toml')
-    parser.add_argument('--users-file', dest='users_file', default='users.toml')
-    parser.add_argument('--origin', dest='origin', default='.')
-    parser.add_argument('--env', dest='env', default='')
-    parser.add_argument('--force-cleanup', dest='force_cleanup_bad_deploy', default=False, action='store_true')
-    parser.add_argument('--force-full-deploy', dest='force_full_deploy', default=False, action='store_true')
-    parser.add_argument('--run-sql-migrations', dest='run_sql_migrations', default=False, action='store_true')    
-    parser.add_argument('action', nargs=1, choices=['initial', 'provision', 'deploy'])
-    parser.add_argument('hosts', nargs=argparse.REMAINDER)
+    if not len(sys.args) > 1:
+        sys.stderr.write("You must pass in an action as the first argument")
+        sys.exit(1)
+    action = sys.args[1]
+    if not action in action_to_parser:
+        sys.stderr.write('Action "%s" is not valid. Valid actions are: %s.' % (action, ', '.join(action_to_parser.keys())))
+        sys.exit(1)
+    parser = action_to_parser[action]
     options =  parser.parse_args()
     user = options.user or get_login_user()
-    action = options.action[0]
-    print('action! ', action)
     if action == 'deploy':
-        print('env ', options.env)
         deploy(user, options.deployment_file, options.origin, options.env, options)
     else:
         hosts_file = options.hosts_file
@@ -56,14 +94,24 @@ def main():
 def initial_setup(host_conf, user, users):
     host = host_conf['host']
     $login = user + '@' + host
-    ![ssh -t $login "sudo apt-get -y update"]
-    ![ssh -t $login "sudo apt-get -y upgrade"]
-    result = !(ssh $login "which xonsh")
-    if not result or result.rtn > 0 or not '/xonsh' in result.stdout:
-        install(host_conf, user, 'python-pip', 'ipython', 'python3-pip')
-    ![ssh -t $login "sudo pip install toml"]
-    ![ssh -t $login "pip3 -qq install --upgrade pip"]
-    ![ssh -t $login "sudo pip3 install xonsh toml jinja2 requests"]
+    with SshMachine(user, host) as remote:
+        r_sudo = rem["sudo"]
+        apt_get = r_sudo[rem['apt-get']]
+        apt_get['-y', 'update'] & FG
+        apt_get['-y', 'upgrade'] & FG
+        apt_get['-y', 'python-pip', 'python3-pip'] & FG
+        r_sudo[rem['pip']]['install', 'toml']
+        r_sudo[rem['pip3']]['install', '--upgrade', 'pip']
+        r_sudo[rem['pip3']]['install', 'xonsh', 'toml', 'jinja2', 'requests']
+        
+    #![ssh -t $login "sudo apt-get -y update"]
+    #![ssh -t $login "sudo apt-get -y upgrade"]
+    #result = !(ssh $login "which xonsh")
+    #if not result or result.rtn > 0 or not '/xonsh' in result.stdout:
+    #    install(host_conf, user, 'python-pip', 'ipython', 'python3-pip')
+    #![ssh -t $login "sudo pip install toml"]
+    #![ssh -t $login "pip3 -qq install --upgrade pip"]
+    #![ssh -t $login "sudo pip3 install xonsh toml jinja2 requests"]
     sync_users(host_conf, user, users)
 
 

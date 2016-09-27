@@ -232,6 +232,13 @@ class Deployer():
             raise ValueError("Invalid destination %s" % dest)
         info("executing: %s" % cmd)
         ![@(cmd)]
+
+        # If secrets.json.aes and no secrets.
+        if os.path.isfile(dest + "/conf/secrets.json.aes") and not os.path.isfile(dest + "/conf/secrets.json"):
+            self.decrypt_secrets_file(dest)
+            ![chown stallionOwner.stallion @(dest + "/conf/secrets.json")]
+
+        
         # app-data is group writable, so stallionServer can write to it
         # app-data exists outside of the alpha and beta directory, because is always shared in common
         # between the two nodes
@@ -246,13 +253,31 @@ class Deployer():
         r = ![chown -R stallionOwner.stallion $root/app-data]
         if r.rtn > 0:
             fatal('Error setting owner and user for app-data')
-                    
+
             
         # We do not want the world to be able read the secrets file
         if os.path.isfile(dest + "/conf/secrets.json"):
             ![chmod 662 $dest/conf/secrets.json]
         if os.path.isfile(source + "conf/secrets.json"):
             os.unlink(source + "conf/secrets.json")
+
+    def decrypt_secrets_file(self, app_folder):
+        pwd = ''
+        for arg in sys.argv:
+            if arg.startswith('--secrets-passphrase='):
+                pwd = arg.split('=', 1)[1]
+        if not pwd:
+            raise Exception('encrypted secrets.json.aes file found, but no --secrets-passphrase=<passphrase> argument was passed in.')
+        cmd = [self.root + "/" + self.deploying + "/bin/" + self.executable_name, "secrets-decrypt", "-passphrase=" + pwd, "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env]
+        r =![@(cmd)]
+        
+        if r.rtn != 0 or not os.path.isfile(app_folder + '/conf/secrets.json'):
+            warn("Secret decryption failed.")
+            sys.exit(1)
+        else:
+            good("Secrets decryption succeeded.")
+        
+        
 
     def run_migrations(self):
         cmd = ["sudo", "-u", "stallionServer", self.root + "/" + self.deploying + "/bin/" + self.executable_name, "sql-migrate", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env]
