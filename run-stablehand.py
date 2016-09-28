@@ -3,9 +3,8 @@ import argparse
 import inspect
 import json
 import os
-from plumbum import SshMachine
-from plumbum.cmd import ls
-from plumbum import FG, BG
+from plumbum import SshMachine, FG, BG, local
+from plumbum.cmd import ls, scp, rsync
 import sys
 import toml
 import tempfile
@@ -19,14 +18,14 @@ def make_initial_parser():
     p.add_argument('--user', dest='user')
     p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
     p.add_argument('--users-file', dest='users_file', default='users.toml')
-    p.add_argument('--hosts', dest='hosts', default='ALL')
+    p.add_argument('--hosts', dest='hosts', default='')
     return p
 
 def make_provision_parser():
     p = argparse.ArgumentParser()
     p.add_argument('--user', dest='user')
     p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
-    p.add_argument('--hosts', dest='hosts', default='ALL')
+    p.add_argument('--hosts', dest='hosts', default='')
     return p
 
 def make_sync_user_parser():
@@ -34,7 +33,7 @@ def make_sync_user_parser():
     p.add_argument('--user', dest='user')
     p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
     p.add_argument('--users-file', dest='users_file', default='users.toml')
-    p.add_argument('--hosts', dest='hosts', default='ALL')
+    p.add_argument('--hosts', dest='hosts', default='')
     return p
 
 def make_deploy_parser():
@@ -58,15 +57,15 @@ action_to_parser = {
 
 
 def main():
-    if not len(sys.args) > 1:
+    if not len(sys.argv) > 1:
         sys.stderr.write("You must pass in an action as the first argument")
         sys.exit(1)
-    action = sys.args[1]
+    action = sys.argv[1]
     if not action in action_to_parser:
         sys.stderr.write('Action "%s" is not valid. Valid actions are: %s.' % (action, ', '.join(action_to_parser.keys())))
         sys.exit(1)
     parser = action_to_parser[action]
-    options =  parser.parse_args()
+    options =  parser.parse_args(sys.argv[2:])
     user = options.user or get_login_user()
     if action == 'deploy':
         deploy(user, options.deployment_file, options.origin, options.env, options)
@@ -93,63 +92,53 @@ def main():
 
 def initial_setup(host_conf, user, users):
     host = host_conf['host']
-    $login = user + '@' + host
-    with SshMachine(user, host) as remote:
-        r_sudo = rem["sudo"]
-        apt_get = r_sudo[rem['apt-get']]
-        apt_get['-y', 'update'] & FG
-        apt_get['-y', 'upgrade'] & FG
-        apt_get['-y', 'python-pip', 'python3-pip'] & FG
-        r_sudo[rem['pip']]['install', 'toml']
-        r_sudo[rem['pip3']]['install', '--upgrade', 'pip']
-        r_sudo[rem['pip3']]['install', 'xonsh', 'toml', 'jinja2', 'requests']
-        
-    #![ssh -t $login "sudo apt-get -y update"]
-    #![ssh -t $login "sudo apt-get -y upgrade"]
-    #result = !(ssh $login "which xonsh")
-    #if not result or result.rtn > 0 or not '/xonsh' in result.stdout:
-    #    install(host_conf, user, 'python-pip', 'ipython', 'python3-pip')
-    #![ssh -t $login "sudo pip install toml"]
-    #![ssh -t $login "pip3 -qq install --upgrade pip"]
-    #![ssh -t $login "sudo pip3 install xonsh toml jinja2 requests"]
+    with SshMachine(host, user) as remote:
+        r_sudo = remote["sudo"]
+        apt_get = r_sudo[remote['apt-get']]
+        #apt_get['-y', 'update'] & FG
+        #apt_get['-y', 'upgrade'] & FG
+        apt_get['-y', 'install', 'python-pip', 'python3-pip'] & FG
+        r_sudo[remote['pip']]['install', 'toml'] & FG
+        r_sudo[remote['pip3']]['install', '--upgrade', 'pip'] & FG
+        r_sudo[remote['pip3']]['install', 'xonsh', 'toml', 'jinja2', 'requests', 'plumbum'] & FG
     sync_users(host_conf, user, users)
 
 
 
 def sync_users(host_conf, user, users):
+    host = host_conf['host']
     script_base = ''
     script_base += 'HOST_CONF = %s\n' % repr(host_conf)
     script_base += 'USERS = %s\n' % repr(users)
     script_base += '\n\n'
     with tempfile.NamedTemporaryFile('w+') as f:
         script = script_base
-        path = local_path + 'stablehand/ubuntu/initial-setup-this-server.xsh'
+        path = local_path + 'stablehand/ubuntu/initial-setup-this-server.py'
         with open(path) as source:
             script += source.read()
         f.write(script)
         f.flush()
-        $file_name = f.name
-        args = ['scp', '-q', f.name, $login + ':-server.xsh']
-        ![@(args)]
+        file_name = f.name
+        scp['-q', f.name, user + '@' + host + ':initial-setup-this-server.py'] & FG
+        ##![@(args)]
         
     with tempfile.NamedTemporaryFile() as f:
         script = script_base
-        path = local_path + 'stablehand/ubuntu/add-users.xsh'
+        path = local_path + 'stablehand/ubuntu/add-users.py'
         with open(path, 'r') as source:
             script += source.read()
         f.write(script.encode())
         f.flush()
-        $file_name = f.name
-        args = ['scp', '-q', f.name, $login + ':add-users.xsh']
-        ![@(args)]
+        file_name = f.name
+        scp['-q', f.name, user + '@' + host + ':add-users.py'] & FG
+        ##![@(args)]
 
-    r = ![ssh -t $login 'sudo xonsh add-users.xsh;']
-    verify(r)
-    r = !(ssh -t $login 'sudo xonsh initial-setup-this-server.xsh')
-    verify(r)
-        
-    !(ssh $login unlink stallion-init-users-script.ipy)
-    ![ssh $login unlink add-users.xsh]
+    with SshMachine(host, user) as remote:
+        r_sudo = remote["sudo"]
+        r_sudo[remote['python3']]['add-users.py'] & FG
+        r_sudo[remote['python3']]['initial-setup-this-server.py'] & FG
+        r_sudo[remote['unlink']]['add-users.py'] & FG
+        r_sudo[remote['unlink']]['initial-setup-this-server.py'] & FG
 
 
 def deploy(user, deployment_file, origin, env, options):
@@ -162,10 +151,6 @@ def deploy(user, deployment_file, origin, env, options):
 
 def deploy_to_host(env, env_conf, user, host, origin, options):
     
-    #origin = env_conf.get('origin', 'local-rsync')
-    #if origin == 'local-rsync':
-        #
-        
     if '://' in origin:
         raise NotImplementedError('Origin URLs not implemented yet')
     elif not origin.startswith('/'):
@@ -202,7 +187,7 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
         user + "@" + host + ":" + wharf
         ]
     
-    r = ![@(args)]
+    ##r = ![@(args)]
     verify(r, 'rsync of application folder failed with errors.')
     data = {
         'env': env,
@@ -246,7 +231,7 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
     
 
                   
-    r = ![@(args)]
+    ##r = ![@(args)]
     verify(r, 'Deploy script exited with errors.')
 
         
@@ -254,15 +239,13 @@ def provision_host(user, host_conf, hosts_toml_path):
     host = host_conf['host']
     prepare_to_run_scripts(user, host)
     print("Begin remote execution of setup script")
-    $v_string = ''
+    v_string = ''
     if '-v' in sys.argv:
-        $v_string = ' -v '
+        v_string = ' -v '
     cmd = ['scp', '-q', hosts_toml_path, '%s@%s:~/setup-scripts/hosts.toml' % (user, host)]
     print("Uploading hosts toml file: %s" % cmd)
-    r = ![@(cmd)]
-    $login = user + '@' + host
-    $host = host
-    r = ![ssh -t $login "cd ~/setup-scripts;sudo xonsh ~/setup-scripts/stablehand/ubuntu/setup-this-server.xsh -- $host $v_string;"]
+    ##r = ![@(cmd)]
+    ##r = ![ssh -t $login "cd ~/setup-scripts;sudo xonsh ~/setup-scripts/stablehand/ubuntu/setup-this-server.xsh -- $host $v_string;"]
     verify(r, 'Provision host exited with errors')
 
 
@@ -275,21 +258,10 @@ def prepare_to_run_scripts(user, host):
     if user == 'root':
         raise Exception('You cannot run setup as root. Please run with --initial and set up non-root users on this box.')
     print("Setting up host %s@%s " % (user, host))
-    $login = user + '@' + host
-    #result = !(ssh $login "which ipython")
-    #if result.rtn != 0:
-    #    print("You did not run initial setup for server %s! Run this script with --initial first!" % host)
-    #    return
-    #result = !(ssh $login "which xonsh")
-    #if result.rtn != 0:
-    #    print("You did not run initial setup for server %s! Run this script with --initial first!" % host)
-    #    return
-    
-    
-    ![ssh $login mkdir -p @('~/setup-scripts')]
+    ##![ssh $login mkdir -p @('~/setup-scripts')]
     cmd = ['rsync', '-r', "--exclude=\".*\"", local_path, "%s@%s:~/setup-scripts" % (user, host)]
     print("Running rsync of setup scripts: ", cmd)
-    r = ![@(cmd)]
+    ##r = ![@(cmd)]
     verify(r, "rsync of stablehand scripts failed")
 
                   
@@ -347,11 +319,11 @@ def load_users_from_toml(users_toml_path):
     
         
 def install(host_conf, user, *args):
-    $login = user + '@' + host_conf['host']
+    host = host_conf['host']
     cmd = "sudo apt-get -y install " + ' '.join(args)
     if host_conf.get('os', 'ubuntu') in ('ubuntu', 'debian'):
         print('Install ', args)
-        ![ssh -t $login @(cmd)]
+        ##![ssh -t $login @(cmd)]
     else:
         raise Exception('We only support ubuntu right now. Your OS is %s' % host_conf['os'])
 
@@ -362,7 +334,7 @@ def upload_string(user, host, content, target_file):
         f.write(content.encode())
         f.flush()
         args = ['scp', '-q', f.name, user + '@' + host + ':' + target_file]
-        ![@(args)]
+        ##![@(args)]
 
 def verify(cmd_result, msg='Command exited with errors.'):
     if cmd_result.rtn == 0:
