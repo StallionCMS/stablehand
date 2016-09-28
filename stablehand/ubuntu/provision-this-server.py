@@ -9,6 +9,7 @@ import re
 import string
 import sys
 
+from plumbum import FG, BG, local
 
 print(os.getcwd())
 print(sys.path)
@@ -20,7 +21,7 @@ def main():
     host = sys.argv[1]
     print('Running setup-this-server')
     print('Ensure jinja2, toml, requests exists')
-    ![pip3 -qq install jinja2 requests toml]
+    local['pip3']['-qq', 'install', 'jinja2', 'requests', 'toml'] & FG
     #
     #if len(sys.argv) > 2:
     #    custom_folder = sys.argv[2]
@@ -35,9 +36,6 @@ def main():
     from stablehand.ubuntu import schemes
     Runner(host).run()
     print("Provisioning script complete.")
-
-#USER = os.environ['USER']
-#HOME = os.environ['HOME']
 
 if __name__ == '__main__':
     main()

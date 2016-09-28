@@ -3,7 +3,7 @@ import codecs
 import os
 
 from plumbum import FG, BG, local
-from plumbum.cmd import cp, chmod, chown
+from plumbum.cmd import chmod, chown
 
 apt_get = local['apt-get']
 
@@ -14,14 +14,14 @@ def install(*args):
     
     if os.path.isfile('/usr/bin/apt-get'):
         info('Install if does not exist: apt-get install %s' % ' '.join(args))
-        cmd_args = tuple('install', '-qq', '-y') + tuple(args)
+        cmd_args = ('install', '-qq', '-y') + tuple(args)
         apt_get[cmd_args] & FG
     else:
         raise Exception('apt-get does not exist on this system. Stablehand only supports ubuntu right now.')
 
 def cp(source, dest, mode='644'):
-    cp[source, dest] & FG
-    chmod[mode, dest] & FT
+    local['cp'][source, dest] & FG
+    chmod[mode, dest] & FG
         
 def write(s, dest, mode='644'):
     if not os.path.isdir(os.path.dirname(dest)):

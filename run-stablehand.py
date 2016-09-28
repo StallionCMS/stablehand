@@ -242,11 +242,21 @@ def provision_host(user, host_conf, hosts_toml_path):
     v_string = ''
     if '-v' in sys.argv:
         v_string = ' -v '
-    cmd = ['scp', '-q', hosts_toml_path, '%s@%s:~/setup-scripts/hosts.toml' % (user, host)]
-    print("Uploading hosts toml file: %s" % cmd)
-    ##r = ![@(cmd)]
-    ##r = ![ssh -t $login "cd ~/setup-scripts;sudo xonsh ~/setup-scripts/stablehand/ubuntu/setup-this-server.xsh -- $host $v_string;"]
-    verify(r, 'Provision host exited with errors')
+    
+    print("Uploading hosts toml file.")
+    scp['-q', hosts_toml_path, '%s@%s:~/setup-scripts/hosts.toml' % (user, host)] & FG
+
+    with SshMachine(host, user, ssh_opts=['-t']) as remote:
+        with remote.cwd(remote.env.home + '/setup-scripts'):
+            r_sudo = remote["sudo"]
+            #remote['sudo']['ls'] & FG
+            r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/provision-this-server.py', host, v_string] & FG
+            #with remote.session(isatty=True) as session:
+            #    print('run setup this server')
+            #    remote['sudo']['ls'] & FG
+                #session.run('sudo python ' + remote.env.home + '/setup-scripts/stablehand/ubuntu/setup-this-server.py ' + host + v_string)
+                #r_sudo['python', remote.env.home + '/setup-scripts/stablehand/ubuntu/setup-this-server.py', host, v_string] & FG
+
 
 
 
@@ -259,10 +269,8 @@ def prepare_to_run_scripts(user, host):
         raise Exception('You cannot run setup as root. Please run with --initial and set up non-root users on this box.')
     print("Setting up host %s@%s " % (user, host))
     ##![ssh $login mkdir -p @('~/setup-scripts')]
-    cmd = ['rsync', '-r', "--exclude=\".*\"", local_path, "%s@%s:~/setup-scripts" % (user, host)]
-    print("Running rsync of setup scripts: ", cmd)
-    ##r = ![@(cmd)]
-    verify(r, "rsync of stablehand scripts failed")
+    print("Running rsync of setup scripts.")
+    local['rsync']['-r', "--exclude=\".*\"", local_path, "%s@%s:~/setup-scripts" % (user, host)] & FG
 
                   
 def load_hosts_from_toml(toml_path, hosts):    
@@ -315,18 +323,6 @@ def load_users_from_toml(users_toml_path):
         users_conf = toml.load(f)
         return users_conf.get('users')
     return []
-
-    
-        
-def install(host_conf, user, *args):
-    host = host_conf['host']
-    cmd = "sudo apt-get -y install " + ' '.join(args)
-    if host_conf.get('os', 'ubuntu') in ('ubuntu', 'debian'):
-        print('Install ', args)
-        ##![ssh -t $login @(cmd)]
-    else:
-        raise Exception('We only support ubuntu right now. Your OS is %s' % host_conf['os'])
-
 
     
 def upload_string(user, host, content, target_file):
