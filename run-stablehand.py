@@ -42,6 +42,7 @@ def make_deploy_parser():
     p.add_argument('--deployment-file', dest='deployment_file', default='deployment.toml')
     p.add_argument('--origin', dest='origin', default='.')
     p.add_argument('--env', dest='env', default='')
+    p.add_argument('--disable-colored-logging', dest='disable_colored_logging', action='store_true')
     p.add_argument('--force-cleanup', dest='force_cleanup_bad_deploy', default=False, action='store_true')
     p.add_argument('--force-full-deploy', dest='force_full_deploy', default=False, action='store_true')
     p.add_argument('--run-sql-migrations', dest='run_sql_migrations', default=False, action='store_true')
@@ -120,7 +121,6 @@ def sync_users(host_conf, user, users):
         f.flush()
         file_name = f.name
         scp['-q', f.name, user + '@' + host + ':initial-setup-this-server.py'] & FG
-        ##![@(args)]
         
     with tempfile.NamedTemporaryFile() as f:
         script = script_base
@@ -131,7 +131,6 @@ def sync_users(host_conf, user, users):
         f.flush()
         file_name = f.name
         scp['-q', f.name, user + '@' + host + ':add-users.py'] & FG
-        ##![@(args)]
 
     with SshMachine(host, user) as remote:
         r_sudo = remote["sudo"]
@@ -162,8 +161,7 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
     folder = env_conf['rootFolder']
     wharf = '.stallion-wharf-' + folder.strip('/').replace('/', '--')
     wharf = '~/' + wharf + '/'
-    args = [
-        "rsync",
+    args = (
         "-r", # recursive
         "-p", # preserve permissions
         "-t", # preserve modification times
@@ -185,10 +183,9 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
         "secrets.json",
         origin,
         user + "@" + host + ":" + wharf
-        ]
+        )
     
-    ##r = ![@(args)]
-    verify(r, 'rsync of application folder failed with errors.')
+    local['rsync'][args] & FG
     data = {
         'env': env,
         'env_conf': env_conf,
@@ -222,17 +219,11 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
                     keyring.set_password("system", keyring_name, pwd)
             secrets_passphrase_arg = '--secrets-passphrase=' + pwd
         
-    args = [
-        'ssh',
-        '-t',
-        user + '@' + host,
-        "~/setup-scripts;sudo xonsh ~/setup-scripts/stablehand/ubuntu/deploy-to-this-server.xsh %s %s" % (wharf, secrets_passphrase_arg)
-    ]
-    
 
-                  
-    ##r = ![@(args)]
-    verify(r, 'Deploy script exited with errors.')
+    with SshMachine(host, user, ssh_opts=['-t']) as remote:
+        with remote.cwd(remote.env.home + '/setup-scripts'):
+            r_sudo = remote["sudo"]
+            r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/deploy-to-this-server.py', wharf, secrets_passphrase_arg] & FG
 
         
 def provision_host(user, host_conf, hosts_toml_path):
@@ -249,6 +240,7 @@ def provision_host(user, host_conf, hosts_toml_path):
     with SshMachine(host, user, ssh_opts=['-t']) as remote:
         with remote.cwd(remote.env.home + '/setup-scripts'):
             r_sudo = remote["sudo"]
+
             #remote['sudo']['ls'] & FG
             r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/provision-this-server.py', host, v_string] & FG
             #with remote.session(isatty=True) as session:
@@ -268,7 +260,7 @@ def prepare_to_run_scripts(user, host):
     if user == 'root':
         raise Exception('You cannot run setup as root. Please run with --initial and set up non-root users on this box.')
     print("Setting up host %s@%s " % (user, host))
-    ##![ssh $login mkdir -p @('~/setup-scripts')]
+    local['ssh'][user + '@' + host, 'mkdir', '-p', '~/setup-scripts'] & FG
     print("Running rsync of setup scripts.")
     local['rsync']['-r', "--exclude=\".*\"", local_path, "%s@%s:~/setup-scripts" % (user, host)] & FG
 
@@ -329,8 +321,7 @@ def upload_string(user, host, content, target_file):
     with tempfile.NamedTemporaryFile() as f:
         f.write(content.encode())
         f.flush()
-        args = ['scp', '-q', f.name, user + '@' + host + ':' + target_file]
-        ##![@(args)]
+        local['scp']['-q', f.name, user + '@' + host + ':' + target_file] & FG
 
 def verify(cmd_result, msg='Command exited with errors.'):
     if cmd_result.rtn == 0:

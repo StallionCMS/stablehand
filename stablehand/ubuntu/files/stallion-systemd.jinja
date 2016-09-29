@@ -1,0 +1,14 @@
+
+
+[Unit]
+Description=A Java-based CMS and application framework
+After=network.target
+
+[Service]
+Environment=STALLION_HOST={{host}}
+Environment=STALLION_DOMAIN={{domain}}
+Environment=STALLION_DEPLOY_TIME={{now_stamp}}
+User=stallionServer
+Group=stallion
+ExecStart={{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
+Restart=on-failure
