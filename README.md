@@ -3,7 +3,9 @@ Stablehand
 
 A server provisioning and deployment system for small teams, written using python.
 
-Orginally developed by the creator of Stallion CMS.
+Orginally developed for use with [Stallion](http://stallion.io/), but can be used for any project.
+
+As of September 2016, Stablehand only works with Ubuntu, though it could easily be extended to work with other linux systems.
 
 Why Stablehand
 ------------------------------------------------------------
@@ -14,9 +16,9 @@ I wanted a provisioning system with the following characteristics:
 2. Written in python, since it is my favorite language.
 3. Very easy to convert a set of interactive bash commands or python commands into a repeatable function that installs a new feature.
 
-The last one is key. Other provisioning frameworks (Puppet, Ansible, etc.) have their own domain specific language for configuring new features. Yet most instructions for installing various services are written in the documentation as procedual bash commands. It can be very tricky to translate those bash commands into the specific format needed by the framework. With, Stablehand, it is very easy to do a one-for-one translation.
+The last one is key. Other provisioning frameworks (Puppet, Ansible, etc.) have their own domain specific language for configuring new features. Yet when I come across some new service that I want to install, I find that most people write instructions for their service as a set of procedual bash commands. It can be very tricky to translate those bash commands into the specific format needed by Ansible. With, Stablehand, it is very easy to do a one-for-one translation.
 
-For example, one time I wanted to install MySQL 7 on Ubuntu 14. I found a page with instructions, with the following commands:
+For example, one time I wanted to install MySQL 7 on Ubuntu 14. I found a page with instructions and the following commands:
 
 ```
 wget http://dev.mysql.com/get/mysql-apt-config_0.3.5-1ubuntu14.04_all.deb
@@ -44,7 +46,7 @@ class MySql7Feature(BaseFeature):
         install('mysql-community-server')
 ```
 
-The line `local['wget'][...] & FG` comes from from the excellent [plumbum](http://plumbum.readthedocs.io/) python library, which makes it super easy to run external commands from python. Stablehand makes extensive use of plumbum so if you use stablehand you should definitely thoroughly read the docs for plumbum.
+The line `local['wget'][...] & FG` comes from from the excellent [plumbum](http://plumbum.readthedocs.io/) Python library, which makes it super easy to run external commands from Python. Stablehand makes extensive use of plumbum. If you use stablehand you should definitely thoroughly read the docs for plumbum.
 
 The trade-off is that feature definitions for Stablehand will be less portable across operating systems than will be recipes or playbooks for Puppet or Ansible. However, I have found that portability is not an issue I care about. Most developers specialize in a particular operating system for a given project. I have found if I am just trying to solve for my own projects, it takes me mere minutes to create a Stablehand feature from scratch, and then it is very easy to debug and customize it according to my exact needs. This is much more efficient than using an off-the-shelf Ansible playbook which is easy to start from but harder to customize.
 
