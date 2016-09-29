@@ -265,13 +265,12 @@ class Deployer():
             os.unlink(source + "conf/secrets.json")
 
     def decrypt_secrets_file(self, app_folder):
-        pwd = ''
-        for arg in sys.argv:
-            if arg.startswith('--secrets-passphrase='):
-                pwd = arg.split('=', 1)[1]
+        pwd = os.environ.get('STALLION_SECRETS_PASSPHRASE')
+        print('PWD ' + pwd)
         if not pwd:
             raise Exception('encrypted secrets.json.aes file found, but no --secrets-passphrase=<passphrase> argument was passed in.')
-        local[self.root + "/" + self.deploying + "/bin/" + self.executable_name]["secrets-decrypt", "-passphrase=" + pwd, "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env] & FG
+        with local.env(STALLION_SECRETS_PASSPHRASE=pwd):
+            local[self.root + "/" + self.deploying + "/bin/" + self.executable_name]["secrets-decrypt", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env] & FG
         if not os.path.isfile(app_folder + '/conf/secrets.json'):
             warn("Secret decryption failed.")
             sys.exit(1)

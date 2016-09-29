@@ -146,7 +146,7 @@ def deploy_stallion(user, deployment_file, origin, env, options):
     env_conf = _get_env_conf(deployment_file, env)
     for host in env_conf['hosts']:
         prepare_to_run_scripts(user, host)
-        deploy_to_host(env, env_conf, user, host, origin, options)
+        deploy_stallion_to_host(env, env_conf, user, host, origin, options)
 
 def deploy_stallion_to_host(env, env_conf, user, host, origin, options):
     
@@ -222,7 +222,7 @@ def deploy_stallion_to_host(env, env_conf, user, host, origin, options):
 
     with SshMachine(host, user, ssh_opts=['-t']) as remote:
         with remote.cwd(remote.env.home + '/setup-scripts'):
-            r_sudo = remote["sudo"]
+            r_sudo = remote["sudo"]['-E']
             with remote.env(STALLION_SECRETS_PASSPHRASE=pwd):
                 r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/deploy-stallion-to-this-server.py', wharf] & FG
 
