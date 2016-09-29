@@ -200,7 +200,7 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
     if os.path.isfile(origin + '/conf/secrets.json.aes'):
         if os.path.isfile('/usr/local/etc/stallion-secrets-passphrase'):
             with open('/usr/local/etc/stallion-secrets-passphrase') as f:
-                secrets_passphrase_arg = '--secrets-passphrase=' + f.read().trim()
+                secrets_passphrase_arg = '--secrets-passphrase=' + f.read().strip()
         else:
             pwd = ''
             keyring_name = "stallion-passphrase-" + origin + "/conf/secrets.json.aes"
