@@ -210,7 +210,12 @@ class MySql7Feature(BaseFeature):
     
     def setup(self):
         if exists('/usr/sbin/mysqld'):
-            return
+            out = local['mysqld']['--version']()
+            if not '5.7' in out:
+                raise Exception('MySQL is already installed, but it is not version 5.7, you will have to manually resolve this.')
+            else:
+                return
+        # See if there is already an apt-get package for mysql 7
         code, out, err = local['apt-cache']['show', 'mysql-server-5.7'].run(retcode=None)
         if code == 0:
             install('mysql-server-5.7')
@@ -219,7 +224,9 @@ class MySql7Feature(BaseFeature):
             local['dpkg']['-i', '/tmp/mysql-apt.deb'] & FG
             apt_get['update']
             install('mysql-community-server')
-        
+
+
+            
 class MySql6Feature(BaseFeature):
     name = 'mysql56'
     
