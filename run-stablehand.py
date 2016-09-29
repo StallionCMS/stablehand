@@ -50,7 +50,7 @@ def make_deploy_parser():
 
 
 action_to_parser = {
-    'deploy': make_deploy_parser(),
+    'deploy-stallion': make_deploy_parser(),
     'sync-users': make_sync_user_parser(),
     'provision': make_provision_parser(),
     'initial': make_initial_parser()
@@ -68,8 +68,8 @@ def main():
     parser = action_to_parser[action]
     options =  parser.parse_args(sys.argv[2:])
     user = options.user or get_login_user()
-    if action == 'deploy':
-        deploy(user, options.deployment_file, options.origin, options.env, options)
+    if action == 'deploy-stallion':
+        deploy_stallion(user, options.deployment_file, options.origin, options.env, options)
     else:
         hosts_file = options.hosts_file
         if not os.path.isfile(hosts_file) and os.path.isfile("conf/" + hosts_file):
@@ -140,7 +140,7 @@ def sync_users(host_conf, user, users):
         r_sudo[remote['unlink']]['initial-setup-this-server.py'] & FG
 
 
-def deploy(user, deployment_file, origin, env, options):
+def deploy_stallion(user, deployment_file, origin, env, options):
     if not len(env):
         raise ValueError('Option --env is required')
     env_conf = _get_env_conf(deployment_file, env)
@@ -148,7 +148,7 @@ def deploy(user, deployment_file, origin, env, options):
         prepare_to_run_scripts(user, host)
         deploy_to_host(env, env_conf, user, host, origin, options)
 
-def deploy_to_host(env, env_conf, user, host, origin, options):
+def deploy_stallion_to_host(env, env_conf, user, host, origin, options):
     
     if '://' in origin:
         raise NotImplementedError('Origin URLs not implemented yet')
@@ -200,7 +200,7 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
     if os.path.isfile(origin + '/conf/secrets.json.aes'):
         if os.path.isfile('/usr/local/etc/stallion-secrets-passphrase'):
             with open('/usr/local/etc/stallion-secrets-passphrase') as f:
-                secrets_passphrase_arg = '--secrets-passphrase=' + f.read().strip()
+                secrets_passphrase_arg = f.read().strip()
         else:
             pwd = ''
             keyring_name = "stallion-passphrase-" + origin + "/conf/secrets.json.aes"
@@ -217,13 +217,14 @@ def deploy_to_host(env, env_conf, user, host, origin, options):
                 if yn and yn.lower()[0] == 'y':
                     import keyring
                     keyring.set_password("system", keyring_name, pwd)
-            secrets_passphrase_arg = '--secrets-passphrase=' + pwd
+            secrets_passphrase_arg = pwd
         
 
     with SshMachine(host, user, ssh_opts=['-t']) as remote:
         with remote.cwd(remote.env.home + '/setup-scripts'):
             r_sudo = remote["sudo"]
-            r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/deploy-to-this-server.py', wharf, secrets_passphrase_arg] & FG
+            with remote.env(STALLION_SECRETS_PASSPHRASE=pwd):
+                r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/deploy-stallion-to-this-server.py', wharf] & FG
 
         
 def provision_host(user, host_conf, hosts_toml_path):
