@@ -18,7 +18,7 @@ I wanted a provisioning system with the following characteristics:
 
 The last one is key. Other provisioning frameworks (Puppet, Ansible, etc.) have their own domain specific language for configuring new features. Yet when I come across some new service that I want to install, I find that most people write instructions for their service as a set of procedual bash commands. It can be very tricky to translate those bash commands into the specific format needed by Ansible. With, Stablehand, it is very easy to do a one-for-one translation.
 
-For example, one time I wanted to install MySQL 7 on Ubuntu 14. I found a page with instructions and the following commands:
+For example, one time I wanted to install MySQL 7 on Ubuntu 14. I found a [page with instructions](http://www.devopsservice.com/installation-of-mysql-server-5-7-on-ubuntu-14-04/) and the following commands:
 
 ```
 wget http://dev.mysql.com/get/mysql-apt-config_0.3.5-1ubuntu14.04_all.deb
@@ -54,7 +54,9 @@ Running Stablehand
 ------------------------------------------------------------
 
 * Clone the git repo
-* Run setup.py: `python setup.py`
+* `cd` into the repo
+* Make sure you have `pip` for `python3` installed
+* Install as an ediable package: `pip3 install -e .`
 * Create a `host.toml` file and a `users.toml` file. (See below)
 * Run `python3 run-stablehand.py <action> <options...>`
 * To provision a server, run `python3 run-stablehand.py initial` and then `python3 run-stablehand.py provision`

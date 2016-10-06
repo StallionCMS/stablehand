@@ -53,3 +53,7 @@ nosetests.xml
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+
+my_contrib
+my_actions

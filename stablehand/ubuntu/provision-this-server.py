@@ -8,8 +8,8 @@ import os
 import re
 import string
 import sys
-
 from plumbum import FG, BG, local
+
 
 print(os.getcwd())
 print(sys.path)
@@ -34,6 +34,12 @@ def main():
     from stablehand.common.base import Runner
     from stablehand.ubuntu import features
     from stablehand.ubuntu import schemes
+
+    try:
+        import my_features
+    except ImportError:
+        pass
+    
     Runner(host).run()
     print("Provisioning script complete.")
 

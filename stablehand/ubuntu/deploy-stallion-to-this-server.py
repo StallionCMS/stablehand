@@ -16,14 +16,13 @@ from plumbum import FG, BG, local, TEE, TF
 from plumbum.cmd import cp, chmod, chown, service, ln
 
 
-print('Deploy to this server!!!!!')
+
 
 this_folder = os.path.abspath(os.path.dirname(os.path.join(os.getcwd(), sys.argv[0]))) + '/'
 wharf = local.env.expand(sys.argv[1])
 with open(wharf + 'deploy_conf.json') as f:
     conf = json.load(f)
 
-print('IS TTY ' + str(sys.stdout.isatty()))
 # Options:
 # --force-full-deploy
 # --log-level
@@ -32,6 +31,7 @@ print('IS TTY ' + str(sys.stdout.isatty()))
 
 
 def main():
+    good('Running deploy script main function')
     d = Deployer()
     d.deploy()
 
@@ -65,7 +65,7 @@ class Deployer():
         # nginx ssl cert private key file
         self.ssl_private_key = d.get('sslPrivateKey', '')
         self.ssl_enabled = self.ssl_cert_chain and self.ssl_private_key
-        if os.path.isfile('/usr/lib/systemd'):
+        if os.path.isfile('/usr/lib/systemd') or os.path.isfile('/bin/systemd') or (local['which']['systemd'] & TF(0)):
             self.is_systemd = True
         else:
             self.is_systemd = False
@@ -102,7 +102,6 @@ class Deployer():
         self.instance_name = self.slugify_re.sub('--', self.root).strip('-').strip('-')
         
     def deploy(self):
-        print('do deploy!')
         self.verify_dependencies()
         self.prepare_wharf()
         change_info = self.detect_changes(self.active)
@@ -266,7 +265,6 @@ class Deployer():
 
     def decrypt_secrets_file(self, app_folder):
         pwd = os.environ.get('STALLION_SECRETS_PASSPHRASE')
-        print('PWD ' + pwd)
         if not pwd:
             raise Exception('encrypted secrets.json.aes file found, but no --secrets-passphrase=<passphrase> argument was passed in.')
         with local.env(STALLION_SECRETS_PASSPHRASE=pwd):
@@ -350,12 +348,15 @@ class Deployer():
         local['chown']['stallionServer.stallion', '/tmp/log/stallion'] & FG
         if self.is_systemd:
             source = self.render_template('stallion-systemd.jinja', self.dict())
-            path = '/lib/systemd/system/%.service' % self.file_base
+            path = '/lib/systemd/system/%s.service' % self.file_base
+            info('Write systemd file to %s' % path)
             with open(path, 'w') as f:
                 f.write(source)
+            local['systemctl']['daemon-reload'] & FG
         else:
             source = self.render_template('stallion-upstart.jinja', self.dict())
             path = '/etc/init/' + self.file_base + '.conf'
+            info('Write upstart file to %s' % path)
             with open(path, 'w') as f:
                 f.write(source)
         self.stop_service(self.file_base, None)
@@ -465,7 +466,10 @@ class Deployer():
         if old:
             assert old != active, "You cannot cleanup the active instance!"
             self.stop_service("stallion.%s.%s" % (self.instance_name, old), 0)
-            local['unlink']["/etc/init/stallion.%s.%s.conf" % (self.instance_name, old)] & FG            
+            if self.is_systemd:
+                local['unlink']["/lib/systemd/system/stallion.%s.%s.service" % (self.instance_name, old)] & FG
+            else:
+                local['unlink']["/etc/init/stallion.%s.%s.conf" % (self.instance_name, old)] & FG
             local['unlink'][self.root + '/old'] & FG
         local['unlink'][self.root + '/deploying'] & FG
 
