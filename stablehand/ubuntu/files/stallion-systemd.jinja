@@ -2,7 +2,7 @@
 
 [Unit]
 Description=A Java-based CMS and application framework
-After=network.target
+After=syslog.target network.target auditd.service
 
 [Service]
 Environment=STALLION_HOST={{host}}
@@ -12,3 +12,6 @@ User=stallionServer
 Group=stallion
 ExecStart={{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
 Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

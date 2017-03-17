@@ -353,6 +353,7 @@ class Deployer():
             with open(path, 'w') as f:
                 f.write(source)
             local['systemctl']['daemon-reload'] & FG
+            local['systemctl']['enable', '%s.service' % self.file_base] & FG
         else:
             source = self.render_template('stallion-upstart.jinja', self.dict())
             path = '/etc/init/' + self.file_base + '.conf'
@@ -438,11 +439,11 @@ class Deployer():
         local['nginx']['-s', 'reload'] & FG
         succeeded = False
         site_url = "http://"
-        if self.redirect_to_ssl and self.ssl_key:
+        if self.redirect_to_ssl:
             site_url = "https://"
         paths = self.check_urls or ['/']
         primary_domain = self.domain
-        site_url = 'http://127.0.0.1' + paths[0]
+        site_url = site_url + '127.0.0.1' + paths[0]
 
         cmd = local['curl']['--header', 'Host: ' + primary_domain, '-v', site_url]
         info("Fetching url via nginx %s " % cmd)
@@ -467,7 +468,9 @@ class Deployer():
             assert old != active, "You cannot cleanup the active instance!"
             self.stop_service("stallion.%s.%s" % (self.instance_name, old), 0)
             if self.is_systemd:
-                local['unlink']["/lib/systemd/system/stallion.%s.%s.service" % (self.instance_name, old)] & FG
+                old_service_name = "stallion.%s.%s.service" % (self.instance_name, old)
+                local['systemctl']['disable', old_service_name] & FG
+                local['unlink']["/lib/systemd/system/%s" % old_service_name] & FG
             else:
                 local['unlink']["/etc/init/stallion.%s.%s.conf" % (self.instance_name, old)] & FG
             local['unlink'][self.root + '/old'] & FG

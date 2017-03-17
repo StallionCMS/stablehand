@@ -80,13 +80,20 @@ class NtpFeature(BaseFeature):
     def setup(self):
         install('ntp')
         ntp_conf = """
-driftfile /var/lib/ntp/ntp.drift
 
-disable monitor
-
-restrict default ignore
+restrict default nomodify nopeer
 restrict 127.0.0.1
+restrict ::1
 
+driftfile /var/lib/ntp/ntp.drift
+logfile /var/log/ntp.log
+
+server 0.ubuntu.pool.ntp.org
+server 1.ubuntu.pool.ntp.org
+server 2.ubuntu.pool.ntp.org
+server 3.ubuntu.pool.ntp.org
+
+server ntp.ubuntu.com
 server pool.ntp.org
 
 """
@@ -149,10 +156,17 @@ class NginxFeature(BaseFeature):
     def setup(self):
         install('nginx')
         substitute(
+            '# gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;',
+            'gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;',
+            '/etc/nginx/nginx.conf'
+        )
+        substitute(
             '# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;',
             'gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;',
             '/etc/nginx/nginx.conf'
         )
+        if os.path.isfile('/var/www/html/index.nginx-debian.html'):
+            cp('/var/www/html/index.nginx-debian.html', '/var/www/html/index.html')
         # For SLL on ELB's http://stackoverflow.com/questions/24603620/redirecting-ec2-elb-from-http-to-https
         write(
             '''

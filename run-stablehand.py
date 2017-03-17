@@ -21,8 +21,9 @@ def main():
         actions.extend(custom_run_actions)
     except ImportError:
         pass
+    available_actions_str = ', '.join([a.name for a in actions])
     if not len(sys.argv) > 1:
-        sys.stderr.write("You must pass in an action as the first argument")
+        sys.stderr.write("You must pass in an action as the first argument. Available actions are: %s" % available_actions_str)
         sys.exit(1)
     action_name = sys.argv[1]
     action_cls = None
@@ -31,7 +32,7 @@ def main():
             action_cls = a
             break
     if not action_cls:
-        raise ValueError('No action named "%s" found.' % action_name)
+        raise ValueError('No action named "%s" found. Available actions are %s' % (action_name, available_actions_str))
     action_runner = action_cls()
     parser = action_runner.make_parser()
     options =  parser.parse_args(sys.argv[2:])
