@@ -367,7 +367,7 @@ class Deployer():
     def verify_stallion_running(self, process=None):
         #urls = ['/st-internal/warmup'] + self.check_urls
         urls = self.check_urls or ['/']
-        max_tries = 20
+        max_tries = 60
         asset_urls = set()
         for url in urls:
             url = 'http://localhost:%s' % self.port + url
@@ -388,6 +388,8 @@ class Deployer():
                     self.find_asset_urls_in_source(out, asset_urls)
                     break
                 except AssertionError:
+                    if x % 10 == 9:
+                        info('Error from curl: %s' % err)
                     if x == max_tries:
                         error('CURL RESULT %s %s' % (url, err + ' ' + out))
                         raise
