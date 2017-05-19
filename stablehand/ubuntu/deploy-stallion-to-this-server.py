@@ -390,7 +390,7 @@ class Deployer():
                 except AssertionError:
                     if x % 10 == 9:
                         info('Error from curl: %s' % err)
-                    if x == max_tries:
+                    if x == max_tries or (x > 5 and not 'Connection refused' in err):
                         error('CURL RESULT %s %s' % (url, err + ' ' + out))
                         raise
                     info('Curl of %s not loading yet, waiting 3 seconds to retry' % url)
