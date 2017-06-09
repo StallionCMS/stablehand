@@ -67,10 +67,11 @@ class InitialAction(BaseStablehandAction):
             apt_get = r_sudo[remote['apt-get']]
             apt_get['-y', 'update'] & FG
             apt_get['-y', 'upgrade'] & FG
-            apt_get['-y', 'install', 'python-pip', 'python3-pip'] & FG
+            apt_get['-y', 'install', 'python-pip', 'python3-pip', 'python-setuptools', 'python3-setuptools'] & FG
+            r_sudo[remote['pip']]['install', '--upgrade', 'pip'] & FG
             r_sudo[remote['pip']]['install', 'toml'] & FG
             r_sudo[remote['pip3']]['install', '--upgrade', 'pip'] & FG
-            r_sudo[remote['pip3']]['install', 'xonsh', 'toml', 'jinja2', 'requests', 'plumbum'] & FG
+            r_sudo[remote['pip3']]['install', 'toml', 'jinja2', 'requests', 'plumbum'] & FG
 
     
 
@@ -103,7 +104,7 @@ class ProvisionAction(BaseStablehandAction):
         with SshMachine(host, user, ssh_opts=['-t']) as remote:
             with remote.cwd(remote.env.home + '/setup-scripts'):
                 r_sudo = remote["sudo"]
-                r_sudo['python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/provision-this-server.py', host, v_string] & FG
+                r_sudo['-H', 'python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/provision-this-server.py', host, v_string] & FG
     
         
 class SyncUsersAction(BaseStablehandAction):

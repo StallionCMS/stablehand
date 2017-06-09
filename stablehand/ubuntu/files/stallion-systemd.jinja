@@ -10,7 +10,7 @@ Environment=STALLION_DOMAIN={{domain}}
 Environment=STALLION_DEPLOY_TIME={{now_stamp}}
 User=stallionServer
 Group=stallion
-ExecStart={{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
+ExecStart=/usr/bin/java {{jvm_options}} -jar {{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
 Restart=on-failure
 
 [Install]

@@ -77,6 +77,9 @@ class Deployer():
         self.nginx_client_max_body_size = conf.get('nginxClientMaxBodySize', '30M')
         self.nginx_proxy_read_timeout =  conf.get('nginxProxyReadTimeout', '3600')
         self.executable_name = conf.get('executableName', '')
+        # Options for the jvm (ex. -XmX256m)
+        self.jvm_options = d.get('jvmOptions', '')
+        info('JVM Options %s' % self.jvm_options)
         if not self.executable_name:
             files = [n for n in os.listdir(wharf + '/bin') if not n.startswith('.') and not n.startswith('~')]
             if files:
@@ -447,7 +450,7 @@ class Deployer():
         primary_domain = self.domain
         site_url = site_url + '127.0.0.1' + paths[0]
 
-        cmd = local['curl']['--header', 'Host: ' + primary_domain, '-v', site_url]
+        cmd = local['curl']['--insecure', '--header', 'Host: ' + primary_domain, '-v', site_url]
         info("Fetching url via nginx %s " % cmd)
         for x in range(0, 10):
             debug("Fetching live url %s" % cmd)
@@ -485,7 +488,7 @@ class Deployer():
 export STALLION_HOST="{host}"
 export STALLION_DOMAIN="{domain}"
 export STALLION_DEPLOY_TIME="{now_stamp}"
-exec sudo -u stallionServer {root}/{deploying}/bin/{executable_name} $1 -targetPath={root}/{deploying} -env={env} $2 $3 $4 $5 $6 $7 $8 $9 $10
+exec sudo -u stallionServer java {jvm_options} -jar {root}/{deploying}/bin/{executable_name} $1 -targetPath={root}/{deploying} -env={env} $2 $3 $4 $5 $6 $7 $8 $9 $10
         """.format(**self.dict())
         server_start_path = self.root + "/stallion-run.sh"
         with open(server_start_path, "w") as f:
