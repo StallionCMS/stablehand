@@ -1,5 +1,7 @@
 import os
 
+import toml
+
 from stablehand.common.base import BaseFeature, common_folder, register_features, ConfigOption, info, debug, warn
 
 from plumbum import FG, BG, local
@@ -306,8 +308,81 @@ class SetHostname(BaseFeature):
     def setup(self):
         if self.hostname:
             local['hostnamectl']['set-hostname', self.hostname] & FG
-    
+
+
+
+class Certbot(BaseFeature):
+    name = 'certbot'
+
+    domains = ConfigOption()
+    email = ConfigOption()
+
+    webroot_path = ConfigOption(default='/var/www/html/') # sometimes /usr/share/nginx/html
+
+    cron_template = '''
+30 2 * * 1 root /usr/bin/certbot renew > /tmp/cron-certbot-global-auto-renew.log
+
+'''    
+
+    def setup(self):
+        if not self.domains or not type(self.domains) == list:
+            raise Exception("You did not configure a list of domains for letsencrypt")
+        if not self.email:
+            raise Exception("You did not configure an email for letsencrypt")
+        if not os.path.isfile('/usr/bin/certbot'):
+            install('install software-properties-common')
+            local['add-apt-repository']['-y', 'ppa:certbot/certbot'] & FG
+            apt_get['update'] & FG
+            install('python-certbot-nginx')
+
+        cron_path = '/etc/cron.d/certbot-global-auto-renew'
+        if not os.path.isfile(cron_path):
+            with open(cron_path, 'w') as f:
+                f.write(self.cron_template)
+            os.chmod(cron_path, 0o600)
+
+
+        domains = sorted(self.domains, key=lambda d:len(d))
+        name = domains[0]
+
+        conf_path = '/etc/letsencrypt/renewal/' + name + '.conf'
+        matches = True
+        if not os.path.isfile(conf_path):
+            matches = False
+        else:
+            with open(conf_path, 'r') as f:
+                text = f.read()
+                for d in domains:
+                    if d + ' = ' + self.webroot_path.rstrip('/') not in text:
+                        matches = False
+
+        if matches:
+            print('letsencrypt renewal conf exists for domains %s' % domains)
+            return
         
+        args = ['certonly', '--webroot', '-w', self.webroot_path, '--cert-name', name]
+        for domain in domains:
+            args.extend(['-d', domain])
+
+        local['certbot'][args] & FG
+
+
+        # sudo certbot certonly --webroot -w /var/www/html/ -d stallion.io -d docs.stallion.io -d www.stallion.io
+    def _read_config_webroot_map(self, path):
+        try:
+            from configparser import ConfigParser
+        except ImportError:
+            from ConfigParser import ConfigParser  # ver. < 3.0
+
+            
+        config = ConfigParser()
+
+        # parse existing file
+        config.read(path)
+        
+        
+        
+            
 class LetsEncrypt(BaseFeature):
     name = 'lets-encrypt-autorenew'
 

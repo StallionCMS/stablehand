@@ -58,7 +58,7 @@ class InitialAction(BaseStablehandAction):
             self.initial_setup_server(host_conf['host'], user)
 
         user_syncer = SyncUsersAction()
-        user_syncer.run(options)
+        user_syncer.run(options, user)
             
             
     def initial_setup_server(self, host, user):
@@ -73,7 +73,41 @@ class InitialAction(BaseStablehandAction):
             r_sudo[remote['pip3']]['install', '--upgrade', 'pip'] & FG
             r_sudo[remote['pip3']]['install', 'toml', 'jinja2', 'requests', 'plumbum'] & FG
 
+class BaseAllHostsAction(BaseStablehandAction):
+    script = ''
+
+    def make_parser(self):
+        p = argparse.ArgumentParser()
+        p.add_argument('--user', dest='user')
+        p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
+        p.add_argument('--hosts', dest='hosts', default='')
+        return p
+
+    def run(self, options):
+        host_confs, hosts_toml_path = self.load_hosts_from_hosts_toml(options)
+        user = self.get_user(options)
+        for host_conf in host_confs:
+            self.run_on_host(user, host_conf, hosts_toml_path)
     
+    def run_on_host(self, user, host_conf, hosts_toml_path):
+        host = host_conf['host']
+        self.sync_scripts_to_host(user, host)
+        print("Begin remote execution of script")
+        v_string = ''
+        if '-v' in sys.argv:
+            v_string = ' -v '
+        print("Uploading hosts toml file.")
+        scp['-q', hosts_toml_path, '%s@%s:~/setup-scripts/hosts.toml' % (user, host)] & FG
+
+        with SshMachine(host, user, ssh_opts=['-t']) as remote:
+            with remote.cwd(remote.env.home + '/setup-scripts'):
+                r_sudo = remote["sudo"]
+                r_sudo['-H', 'python3', remote.env.home + '/setup-scripts/stablehand/ubuntu/' + self.script, host, v_string] & FG
+    
+class CertbotAction(BaseAllHostsAction):
+    name = 'certbot'
+    script = 'certbot-run.py'
+        
 
 class ProvisionAction(BaseStablehandAction):
     name = 'provision'
@@ -113,9 +147,10 @@ class SyncUsersAction(BaseStablehandAction):
     def make_parser(self):
         return InitialAction().make_parser()
 
-    def run(self, options):
+    def run(self, options, user=None):
         host_confs, hosts_toml_path = self.load_hosts_from_hosts_toml(options)
-        user = self.get_user(options)
+        if not user:
+            user = self.get_user(options)
         users = self.load_users_from_toml(options=options)
         for host_conf in host_confs:
             self.sync_users(host_conf['host'], host_conf, user, users)
@@ -125,15 +160,15 @@ class SyncUsersAction(BaseStablehandAction):
         script_base += 'HOST_CONF = %s\n' % repr(host_conf)
         script_base += 'USERS = %s\n' % repr(users)
         script_base += '\n\n'
-        with tempfile.NamedTemporaryFile('w+') as f:
-            script = script_base
-            path = local_path + 'stablehand/ubuntu/initial-setup-this-server.py'
-            with open(path) as source:
-                script += source.read()
-            f.write(script)
-            f.flush()
-            file_name = f.name
-            scp['-q', f.name, user + '@' + host + ':initial-setup-this-server.py'] & FG
+        #with tempfile.NamedTemporaryFile('w+') as f:
+        #    script = script_base
+        #    path = local_path + 'stablehand/ubuntu/initial-setup-this-server.py'
+        #    with open(path) as source:
+        #        script += source.read()
+        #    f.write(script)
+        #    f.flush()
+        #    file_name = f.name
+        #    scp['-q', f.name, user + '@' + host + ':initial-setup-this-server.py'] & FG
             
         with tempfile.NamedTemporaryFile() as f:
             script = script_base
@@ -143,15 +178,15 @@ class SyncUsersAction(BaseStablehandAction):
             f.write(script.encode())
             f.flush()
             file_name = f.name
-            scp['-q', f.name, user + '@' + host + ':add-users.py'] & FG
+            scp[f.name, user + '@' + host + ':add-users.py'] & FG
             
 
         with SshMachine(host, user) as remote:
             r_sudo = remote["sudo"]
             r_sudo[remote['python3']]['add-users.py'] & FG
-            r_sudo[remote['python3']]['initial-setup-this-server.py'] & FG
+            #r_sudo[remote['python3']]['initial-setup-this-server.py'] & FG
             r_sudo[remote['unlink']]['add-users.py'] & FG
-            r_sudo[remote['unlink']]['initial-setup-this-server.py'] & FG
+            #r_sudo[remote['unlink']]['initial-setup-this-server.py'] & FG
 
     def load_users_from_toml(self, users_toml_path=None, options=None):
         if users_toml_path == None and options != None:
@@ -299,7 +334,7 @@ class DeployAction(BaseStablehandAction):
 
     
 
-actions = [InitialAction, ProvisionAction, DeployAction, SyncUsersAction]
+actions = [InitialAction, ProvisionAction, DeployAction, SyncUsersAction, CertbotAction]
 
 
 
