@@ -1,5 +1,13 @@
 from stablehand.common.base import BaseScheme, register_schemes
 
+class NginxScheme(BaseScheme):
+    standard_features = ('ufw', 'utc', 'ntp', 'tmpreaper', 'lockdown', 'swap', 'nginx')
+    features = ()
+    exclude_features = ()
+    force_exclude_features = ()
+    #features = ('nginx', 'stallion', 'curl', 'java8', 'tmpreaper', 'emacs', 'set-hostname', 'sudo-no-password') 
+
+
 class StallionBasicScheme(BaseScheme):
     standard_features = ('ufw', 'utc', 'ntp', 'tmpreaper', 'lockdown', 'swap')
     features = ()
