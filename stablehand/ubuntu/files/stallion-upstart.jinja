@@ -17,7 +17,7 @@ script
     export STALLION_HOST="{{host}}"
     export STALLION_DOMAIN="{{domain}}"
     export STALLION_DEPLOY_TIME="{{now_stamp}}"
-    exec {{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
+    exec {{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}} 
     
 end script
 
