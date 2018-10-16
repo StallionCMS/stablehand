@@ -299,14 +299,14 @@ class Deployer():
     def try_test_start_instance(self):
         # Kill previous instances running on the same port, if exists
         self.stop_service(self.file_base, None)
-        local['pkill']['-f', '-runningFrom=MANUAL_COMMAND.*-port=%s' % self.port].run(retcode=None)
+        local['pkill']['-f', '-localMode=true.*-port=%s' % self.port].run(retcode=None)
         time.sleep(1)
         # start the server
         with local.env(STALLION_HOST=self.host, STALLION_DOMAIN=self.domain, STALLION_DEPLOY_TIME=self.now_stamp):
             p = self._run_as_user([
                 self.root + '/' + self.deploying + '/bin/' + self.executable_name,
                 'serve',
-                #'-runningFrom=MANUAL_COMMAND',
+                '-localMode=false',
                 '-targetPath=' + self.root + '/' + self.deploying,
                 '-port=%s' % self.port,
                 '-env=%s' % self.env,
