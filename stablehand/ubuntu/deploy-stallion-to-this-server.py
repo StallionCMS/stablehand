@@ -393,9 +393,12 @@ class Deployer():
                 info("Verify that URL %s is running" % url)
                 try: 
                     code, out, err = local['curl']['-v', url].run(retcode=None)
-                    assert '< HTTP/1.1 200 OK' in err, "200 OK not found in curl result for %s" % url
-                    if '/st-internal/warmup' in url:
-                        assert 'Stallion-health: OK\n' in out, "Stallion-health: OK not found in curl result for /st-internal/warmup"
+                    if not '< HTTP/1.1 200 OK' in err:
+                        #info("CODE: %s\nSTDOUT:\n\n%s\n\nSTDERR:\n\n%s" % (code, out, err))
+                        raise AssertionError('< HTTP/1.1 200 OK' in err, "200 OK not found in curl result for %s" % url)
+                    if '/st-internal/warmup' in url and 'Stallion-health: OK\n' not in out:
+                        #info("CODE: %s\nSTDOUT:\n\n%s\n\nSTDERR:\n\n%s" % (code, out, err))
+                        raise AssertionError("Stallion-health: OK not found in curl result for /st-internal/warmup")
                     self.find_asset_urls_in_source(out, asset_urls)
                     break
                 except AssertionError:
