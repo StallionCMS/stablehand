@@ -306,7 +306,8 @@ class Deployer():
             p = self._run_as_user([
                 self.root + '/' + self.deploying + '/bin/' + self.executable_name,
                 'serve',
-                #'-runningFrom=MANUAL_COMMAND',
+                '-runningFrom=MANUAL_COMMAND',
+                '-noServices',
                 '-targetPath=' + self.root + '/' + self.deploying,
                 '-port=%s' % self.port,
                 '-env=%s' % self.env,
