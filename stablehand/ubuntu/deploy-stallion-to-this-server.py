@@ -23,6 +23,9 @@ wharf = local.env.expand(sys.argv[1])
 with open(wharf + 'deploy_conf.json') as f:
     conf = json.load(f)
 
+
+print('********************\n* Executing deploy-stallion-to-this-server.py for host %s *\n*************************' % conf['host'])
+    
 # Options:
 # --force-full-deploy
 # --log-level
@@ -39,6 +42,7 @@ class Deployer():
     slugify_re = re.compile(r"[^\w\-]")
     
     def __init__(self):
+        
         self.wharf = wharf
         self.env = conf['env']
         self.host = conf['host']

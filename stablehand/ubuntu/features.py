@@ -207,7 +207,7 @@ class Java8Feature(BaseFeature):
         
 class EmacsFeature(BaseFeature):
     def setup(self):
-        install('emacs24-nox')
+        install('emacs-nox')
 
 class CurlFeature(BaseFeature):
     def setup(self):
