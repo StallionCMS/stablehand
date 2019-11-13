@@ -2,7 +2,7 @@
 
 # C extensions
 *.so
-
+Pipfile.lock
 # Packages
 *.egg
 *.egg-info

@@ -204,6 +204,30 @@ class Java8Feature(BaseFeature):
         
         code, out, err = local['java'].run('-version')
         assert code == 0 and 'java version "1.8.' in err, 'Java failed to install correctly'
+
+class Java11Feature(BaseFeature):
+    def setup(self):
+        code, out, err = local['which'].run('java', retcode=None)
+        if code == 0:
+            code, out, err = local['java'].run('-version')
+            if 'version "11.' in err:
+                print('Java 11 already installed')
+                return
+        apt_get['-y', '-q', 'install', 'software-properties-common'] & FG
+
+        # wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | sudo apt-key add -
+        (local['wget']['-qO', '-', 'https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public'] | local['apt-key']['add', '-']) & FG
+        
+        local['add-apt-repository']['--yes', 'https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/'] & FG
+        apt_get['-y', '-q', 'update'] & FG
+        apt_get['-y', '-f', 'install'] & FG
+        apt_get['-y', '-q', 'install', 'adoptopenjdk-11-hotspot'] & FG
+
+        
+        
+        code, out, err = local['java'].run('-version')
+        assert code == 0 and 'version "11.' in err, 'Java failed to install correctly'
+
         
 class EmacsFeature(BaseFeature):
     def setup(self):
