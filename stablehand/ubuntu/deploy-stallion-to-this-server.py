@@ -129,9 +129,9 @@ class Deployer():
         info('Verifying server has java 8, nginx, and other required dependencies')
         self.check_make_users()
         code, out, err = local['sudo']['-u', 'root']['java', '-version'].run()
-        if not 'java version "1.8.' in err:
+        if not 'version "1' in err:
             warn("java version command result: \n%s" % err)
-            raise EnvironmentError('Java 1.8 not found on the system path for user stallionServer!')
+            raise EnvironmentError('Java not found on the system path for user stallionServer!')
         if not os.path.isdir('/etc/nginx/sites-enabled'):
             raise EnvironmentError('Either nginx is not installed, or the installion is not standard. Folders /etc/nginx/sites-enabled and /etc/nginx/sites-available are both requried')
 
@@ -409,11 +409,11 @@ class Deployer():
                 except AssertionError:
                     if x % 10 == 9:
                         info('Error from curl: %s' % err)
-                    if x == max_tries or (x > 5 and not 'Connection refused' in err):
+                    if x == max_tries or (x >= 15 and not 'Connection refused' in err):
                         error('CURL RESULT %s %s' % (url, err + ' ' + out))
                         raise
-                    info('Curl of %s not loading yet, waiting 3 seconds to retry' % url)
-                    time.sleep(3)
+                    info('Curl of %s not loading yet, waiting 5 seconds to retry' % url)
+                    time.sleep(5)
         good("New Stallion instance is operational and healthy")
         info("Pre-fetching assets")
         for asset_url in asset_urls:

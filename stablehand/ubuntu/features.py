@@ -354,7 +354,7 @@ class Certbot(BaseFeature):
         if not self.email:
             raise Exception("You did not configure an email for letsencrypt")
         if not os.path.isfile('/usr/bin/certbot'):
-            install('install software-properties-common')
+            install('software-properties-common')
             local['add-apt-repository']['-y', 'ppa:certbot/certbot'] & FG
             apt_get['update'] & FG
             install('python-certbot-nginx')

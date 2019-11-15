@@ -45,8 +45,8 @@ class InitialAction(BaseStablehandAction):
     def make_parser(self):
         p = argparse.ArgumentParser()
         p.add_argument('--user', dest='user')
-        p.add_argument('--hosts-file', dest='hosts_file', default='hosts.toml')
-        p.add_argument('--users-file', dest='users_toml_path', default='users.toml')
+        p.add_argument('--hosts-file', dest='hosts_file')
+        p.add_argument('--users-file', dest='users_toml_path')
         p.add_argument('--hosts', dest='hosts', default='')
         return p
 
@@ -62,6 +62,7 @@ class InitialAction(BaseStablehandAction):
             
             
     def initial_setup_server(self, host, user):
+        print('Connect to server: ', host, user)
         with SshMachine(host, user) as remote:
             r_sudo = remote["sudo"]
             apt_get = r_sudo[remote['apt-get']]
@@ -191,6 +192,8 @@ class SyncUsersAction(BaseStablehandAction):
     def load_users_from_toml(self, users_toml_path=None, options=None):
         if users_toml_path == None and options != None:
             users_toml_path = options.users_toml_path
+        if not users_toml_path:
+            users_toml_path = os.environ.get('STABLEHAND_USERS_FILE', '')
         users_toml_path = users_toml_path or 'users.toml'
         if users_toml_path:
             if not os.path.isfile(users_toml_path):

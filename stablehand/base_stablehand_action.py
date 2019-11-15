@@ -24,16 +24,22 @@ class BaseStablehandAction(object):
     def run(self, options):
         raise NotImplementedError("You must implement the function 'run'")
 
-    def load_hosts_from_hosts_toml(self, options=None, hosts=None, hosts_file=None, ):
-        if hosts_file == None and options != None:
+    def load_hosts_from_hosts_toml(self, options=None, hosts=None, hosts_file=None):
+        if not hosts_file and options != None:
             hosts_file = options.hosts_file
-        if hosts == None and options != None:
+        if not hosts and options != None:
             hosts = options.hosts
+        if not hosts_file:
+            hosts_file = 'hosts.toml'
         if not os.path.isfile(hosts_file):
             org_hosts_file = hosts_file
             hosts_file = "conf/" + hosts_file
-        if not os.path.isfile(hosts_file):
-            raise Exception("You must have a hosts.toml in order to deploy. File '%s' does not exist." % org_hosts_file)
+        #if not os.path.isfile(hosts_file):
+        #    hosts_file = "deployment.tom"
+        #if not os.path.isfile(hosts_file):
+        #    hosts_file = "conf/deployment.toml"
+        if not os.path.isfile(hosts_file):            
+            raise Exception("You must have a hosts.toml or deployment.toml in order to deploy. File '%s' does not exist." % org_hosts_file)
         with open(hosts_file) as f:
             all_hosts_conf = toml.load(f)
 
@@ -50,6 +56,7 @@ class BaseStablehandAction(object):
                 raise Exception("No 'host' attribute defined for a host in your hosts.toml")
             if hosts == ['ALL'] or conf.get('host') in hosts:
                 confs.append(conf)
+            
         if not confs:
             raise Exception('No host confs found matching host list: %s' % hosts)
         for conf in confs:
