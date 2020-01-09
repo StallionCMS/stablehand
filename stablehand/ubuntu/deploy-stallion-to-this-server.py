@@ -310,6 +310,8 @@ class Deployer():
         # start the server
         with local.env(STALLION_HOST=self.host, STALLION_DOMAIN=self.domain, STALLION_DEPLOY_TIME=self.now_stamp, JAVA_HOME=self.java_home):
             p = self._run_as_user([
+                self.java_path,
+                '-jar',
                 self.root + '/' + self.deploying + '/bin/' + self.executable_name,
                 'serve',
                 '-runningFrom=MANUAL_COMMAND',
