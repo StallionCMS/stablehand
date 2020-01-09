@@ -8,9 +8,10 @@ After=syslog.target network.target auditd.service
 Environment=STALLION_HOST={{host}}
 Environment=STALLION_DOMAIN={{domain}}
 Environment=STALLION_DEPLOY_TIME={{now_stamp}}
+{% if java_home %}Environment=JAVA_HOME={{java_home}}{% endif %}
 User=stallionServer
 Group=stallion
-ExecStart=/usr/bin/java {{jvm_options}} -jar {{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
+ExecStart={{java_path}} {{jvm_options}} -jar {{root}}/{{deploying}}/bin/{{executable_name}} serve -targetPath={{root}}/{{deploying}} -port={{port}} -env={{env}}
 Restart=on-failure
 
 [Install]

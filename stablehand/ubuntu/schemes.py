@@ -28,11 +28,11 @@ class SwapScheme(BaseScheme):
     
 class StallionMySqlScheme(BaseScheme):
     standard_features = ('ufw', 'utc', 'ntp', 'tmpreaper', 'lockdown', 'swap')
-    features = ('unattended_upgrades_security', 'curl', 'nginx', 'stallion', 'java11', 'emacs', 'mysql57', 'mysql-dump', 'sudo-no-password')
+    features = ('unattended_upgrades_security', 'curl', 'nginx', 'stallion', 'java11', 'emacs', 'mysql57', 'sudo-no-password')
 
 class JenkinsMySqlScheme(BaseScheme):
     standard_features = ('ufw', 'utc', 'ntp', 'tmpreaper', 'lockdown', 'swap')
-    features = ('unattended_upgrades_security', 'curl', 'nginx', 'java11', 'emacs', 'mysql57', 'mysql-dump', 'sudo-no-password', 'jenkins')
+    features = ('unattended_upgrades_security', 'curl', 'nginx', 'java11', 'emacs', 'mysql57', 'sudo-no-password', 'jenkins')
     
 
     

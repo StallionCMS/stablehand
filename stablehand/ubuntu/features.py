@@ -297,7 +297,7 @@ mysqldump -u {mysql_user} --password={mysql_password} --all-databases > {dump_fo
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
-5,17 * * * * root /usr/local/bin/mysql-dump-to-file > /tmp/mysql-dump-to-file.cron.log 2>&1
+25 6 * * * root /usr/local/bin/mysql-dump-to-file > /tmp/mysql-dump-to-file.cron.log 2>&1
 
 '''
         with open('/etc/cron.d/mysql-dump-to-file', 'w') as f:

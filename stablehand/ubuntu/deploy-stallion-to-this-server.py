@@ -51,6 +51,8 @@ class Deployer():
         # Where in the file system the app will live
         self.root = d['rootFolder']
         # URLs to check for a 200 response during deployment
+        self.java_path = d.get('javaPath', '/usr/bin/java')
+        self.java_home = d.get('javaHome', '')
         self.check_urls = d.get('checkUrls', ['/'])
         self.base_port = d.get('basePort', 12500)
         # The domain at which the application will be publicly accessible
