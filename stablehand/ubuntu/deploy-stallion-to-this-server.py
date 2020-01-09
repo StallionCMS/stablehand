@@ -52,7 +52,7 @@ class Deployer():
         self.root = d['rootFolder']
         # URLs to check for a 200 response during deployment
         self.java_path = d.get('javaPath', '/usr/bin/java')
-        self.java_home = d.get('javaHome', '')
+        self.java_home = d.get('javaHome', os.environ.get('JAVA_HOME', ''))
         self.check_urls = d.get('checkUrls', ['/'])
         self.base_port = d.get('basePort', 12500)
         # The domain at which the application will be publicly accessible
@@ -276,7 +276,7 @@ class Deployer():
         pwd = os.environ.get('STALLION_SECRETS_PASSPHRASE')
         if not pwd:
             raise Exception('encrypted secrets.json.aes file found, but no --secrets-passphrase=<passphrase> argument was passed in.')
-        with local.env(STALLION_SECRETS_PASSPHRASE=pwd):
+        with local.env(STALLION_SECRETS_PASSPHRASE=pwd, JAVA_HOME=self.java_home):
             local[self.root + "/" + self.deploying + "/bin/" + self.executable_name]["secrets-decrypt", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env] & FG
         if not os.path.isfile(app_folder + '/conf/secrets.json'):
             warn("Secret decryption failed.")
@@ -287,7 +287,7 @@ class Deployer():
         
 
     def run_migrations(self):
-        local["sudo"]["-u", "stallionServer", self.root + "/" + self.deploying + "/bin/" + self.executable_name, "sql-migrate", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env] & FG
+        local["sudo"]["-u", "stallionServer", self.java_path, '-jar', self.root + "/" + self.deploying + "/bin/" + self.executable_name, "sql-migrate", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env] & FG
         good("SQL migrations run.")
                 
 
@@ -308,7 +308,7 @@ class Deployer():
         local['pkill']['-f', '-runningFrom=MANUAL_COMMAND.*-port=%s' % self.port].run(retcode=None)
         time.sleep(1)
         # start the server
-        with local.env(STALLION_HOST=self.host, STALLION_DOMAIN=self.domain, STALLION_DEPLOY_TIME=self.now_stamp):
+        with local.env(STALLION_HOST=self.host, STALLION_DOMAIN=self.domain, STALLION_DEPLOY_TIME=self.now_stamp, JAVA_HOME=self.java_home):
             p = self._run_as_user([
                 self.root + '/' + self.deploying + '/bin/' + self.executable_name,
                 'serve',
@@ -506,7 +506,8 @@ class Deployer():
 export STALLION_HOST="{host}"
 export STALLION_DOMAIN="{domain}"
 export STALLION_DEPLOY_TIME="{now_stamp}"
-exec sudo -u stallionServer java {jvm_options} -jar {root}/{deploying}/bin/{executable_name} $1 -targetPath={root}/{deploying} -env={env} $2 $3 $4 $5 $6 $7 $8 $9 $10
+export JAVA_HOME={java_home}
+exec sudo -u stallionServer {java_path} {jvm_options} -jar {root}/{deploying}/bin/{executable_name} $1 -targetPath={root}/{deploying} -env={env} $2 $3 $4 $5 $6 $7 $8 $9 $10
         """.format(**self.dict())
         server_start_path = self.root + "/stallion-run.sh"
         with open(server_start_path, "w") as f:
