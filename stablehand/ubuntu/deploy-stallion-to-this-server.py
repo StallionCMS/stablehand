@@ -293,7 +293,7 @@ class Deployer():
 
     def check_for_migrations(self):
         info("Check to see if there are SQL migrations that have not been executed.")
-        code, out, err = local["sudo"]["-u", "stallionServer", self.root + "/" + self.deploying + "/bin/" + self.executable_name, "sql-check-migrations", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env].run(retcode=None)
+        code, out, err = local["sudo"]["-u", "stallionServer", self.java_path, '-jar', self.root + "/" + self.deploying + "/bin/" + self.executable_name, "sql-check-migrations", "-targetPath=" + self.root + "/" + self.deploying, "-env=" + self.env].run(retcode=None)
         if 'result:success' not in out or code != 0:
             info('Sql migration command failed with code: %s\nOUT: %s\nERR: %s\n' % (code, out, err))
             local['unlink'][self.root + '/deploying'] & FG
